@@ -2,18 +2,19 @@
 import { loadGuildData, saveGuildData } from "../../utils/storage.js";
 
 /*
-Data shape assumed 
+Authoritative data model:
 
 {
   lobbies: {
     [lobbyChannelId]: {
-      categoryId
+      categoryId,
+      enabled: true | false
     }
   },
   tempChannels: {
     [tempChannelId]: {
       ownerId,
-      categoryId
+      lobbyId
     }
   }
 }
@@ -22,40 +23,40 @@ Data shape assumed
 export const addLobby = async (guildId, lobbyChannelId, categoryId) => {
   const data = loadGuildData(guildId);
 
-  // prevent add loop / duplicates
-  if (data.lobbies[lobbyChannelId]) {
-    return { ok: false, reason: "exists" };
+  // Already exists and enabled → no-op
+  if (data.lobbies[lobbyChannelId]?.enabled) {
+    return false;
   }
 
-  data.lobbies[lobbyChannelId] = { categoryId };
-  saveGuildData(guildId, data);
+  data.lobbies[lobbyChannelId] = {
+    categoryId,
+    enabled: true
+  };
 
-  return { ok: true };
+  saveGuildData(guildId, data);
+  return true;
 };
 
 export const removeLobby = async (guildId, lobbyChannelId) => {
   const data = loadGuildData(guildId);
+
   const lobby = data.lobbies[lobbyChannelId];
-
-  if (!lobby) {
-    return { ok: false, reason: "missing" };
+  if (!lobby || lobby.enabled === false) {
+    return false;
   }
 
-  const categoryId = lobby.categoryId;
+  // Disable instead of deleting — prevents resurrection loop
+  data.lobbies[lobbyChannelId].enabled = false;
 
-  // block removal if temp channels still exist in this category
-  const hasActiveTemps = Object.values(data.tempChannels).some(
-    ch => ch.categoryId === categoryId
-  );
-
-  if (hasActiveTemps) {
-    return { ok: false, reason: "active" };
+  // Clean up orphan temp channels defensively
+  for (const tempId of Object.keys(data.tempChannels)) {
+    if (data.tempChannels[tempId].lobbyId === lobbyChannelId) {
+      delete data.tempChannels[tempId];
+    }
   }
 
-  delete data.lobbies[lobbyChannelId];
   saveGuildData(guildId, data);
-
-  return { ok: true };
+  return true;
 };
 
 export const resetVoice = async (guildId) => {
