@@ -15,25 +15,49 @@ export default {
 
     const data = loadGuildData(guildId);
 
-    // --- NORMALIZE STORAGE (one-time safety) ---
-    const voice = data.voice ?? { lobbies: {}, tempChannels: {} };
-    data.voice = voice;
+    // normalize
+    data.voice ??= { lobbies: {}, tempChannels: {} };
+    const voice = data.voice;
 
     const oldChannelId = oldState.channelId;
     const newChannelId = newState.channelId;
 
     // ======================================================
-    // JOIN LOBBY → CREATE (ENFORCE ONE TEMP PER USER)
+    // PHASE 1 — LEAVE / CLEANUP (ALWAYS FIRST)
+    // ======================================================
+    if (oldChannelId && oldChannelId !== newChannelId) {
+      const temp = voice.tempChannels[oldChannelId];
+
+      if (temp) {
+        const channel = guild.channels.cache.get(oldChannelId);
+
+        if (!channel || channel.members.size === 0) {
+          delete voice.tempChannels[oldChannelId];
+          saveGuildData(guildId, data);
+
+          if (channel) {
+            await channel.delete().catch(() => {});
+          }
+        }
+      }
+    }
+
+    // ======================================================
+    // PHASE 2 — JOIN / CREATE
     // ======================================================
     if (newChannelId && newChannelId !== oldChannelId) {
       const lobby = voice.lobbies[newChannelId];
       if (!lobby) return;
 
-      // If user already owns a temp channel, move them there instead
-      const existingTempId = Object.entries(voice.tempChannels)
-        .find(([, v]) => v.ownerId === member.id)?.[0];
+      // only redirect if temp belongs to SAME lobby
+      const existingEntry = Object.entries(voice.tempChannels)
+        .find(([, v]) =>
+          v.ownerId === member.id &&
+          v.lobbyId === newChannelId
+        );
 
-      if (existingTempId) {
+      if (existingEntry) {
+        const [existingTempId] = existingEntry;
         const existing = guild.channels.cache.get(existingTempId);
         if (existing) {
           await member.voice.setChannel(existing).catch(() => {});
@@ -65,28 +89,6 @@ export default {
 
       saveGuildData(guildId, data);
       await member.voice.setChannel(channel).catch(() => {});
-      return;
-    }
-
-    // ======================================================
-    // LEAVE TEMP → DELETE IF EMPTY
-    // ======================================================
-    if (oldChannelId && oldChannelId !== newChannelId) {
-      const temp = voice.tempChannels[oldChannelId];
-      if (!temp) return;
-
-      const channel = guild.channels.cache.get(oldChannelId);
-      if (!channel) {
-        delete voice.tempChannels[oldChannelId];
-        saveGuildData(guildId, data);
-        return;
-      }
-
-      if (channel.members.size === 0) {
-        delete voice.tempChannels[oldChannelId];
-        saveGuildData(guildId, data);
-        await channel.delete().catch(() => {});
-      }
     }
   }
 };

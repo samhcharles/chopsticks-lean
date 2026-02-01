@@ -18,14 +18,34 @@ export function loadGuildData(guildId) {
   ensureDir();
   const file = guildFile(guildId);
 
+  // ---------- BRAND NEW GUILD ----------
   if (!fs.existsSync(file)) {
     return {
-      lobbies: {},
-      tempChannels: {}
+      voice: {
+        lobbies: {},
+        tempChannels: {}
+      }
     };
   }
 
-  return JSON.parse(fs.readFileSync(file, "utf8"));
+  const data = JSON.parse(fs.readFileSync(file, "utf8"));
+
+  // ---------- MIGRATION: legacy → canonical ----------
+  if (!data.voice) {
+    data.voice = {
+      lobbies: data.lobbies ?? {},
+      tempChannels: data.tempChannels ?? {}
+    };
+
+    delete data.lobbies;
+    delete data.tempChannels;
+  }
+
+  // ---------- HARD GUARANTEES ----------
+  data.voice.lobbies ??= {};
+  data.voice.tempChannels ??= {};
+
+  return data;
 }
 
 export function saveGuildData(guildId, data) {
