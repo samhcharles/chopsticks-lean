@@ -14,7 +14,7 @@ export default {
     if (!member) return;
 
     const data = loadGuildData(guildId);
-
+data.voice ??= { lobbies: {}, tempChannels: {} };
     // normalize
     data.voice ??= { lobbies: {}, tempChannels: {} };
     const voice = data.voice;

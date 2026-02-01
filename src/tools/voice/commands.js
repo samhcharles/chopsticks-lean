@@ -15,12 +15,13 @@ import {
 export const voiceCommand = {
   data: new SlashCommandBuilder()
     .setName("voice")
-    .setDescription("Voice management")
+    .setDescription("Join-to-create voice configuration")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+
     .addSubcommand(sub =>
       sub
-        .setName("lobby-add")
-        .setDescription("Register a voice lobby")
+        .setName("add")
+        .setDescription("Add a join-to-create lobby")
         .addChannelOption(opt =>
           opt
             .setName("channel")
@@ -31,15 +32,22 @@ export const voiceCommand = {
         .addChannelOption(opt =>
           opt
             .setName("category")
-            .setDescription("Category for temp channels")
+            .setDescription("Category for created channels")
             .addChannelTypes(ChannelType.GuildCategory)
             .setRequired(true)
         )
+        .addStringOption(opt =>
+          opt
+            .setName("template")
+            .setDescription("Channel name template (use {user})")
+            .setRequired(false)
+        )
     )
+
     .addSubcommand(sub =>
       sub
-        .setName("lobby-remove")
-        .setDescription("Remove a voice lobby")
+        .setName("remove")
+        .setDescription("Remove a join-to-create lobby")
         .addChannelOption(opt =>
           opt
             .setName("channel")
@@ -48,67 +56,77 @@ export const voiceCommand = {
             .setRequired(true)
         )
     )
+
+    .addSubcommand(sub =>
+      sub
+        .setName("status")
+        .setDescription("Show current voice configuration")
+    )
+
     .addSubcommand(sub =>
       sub
         .setName("reset")
         .setDescription("Reset all voice configuration")
-    )
-    .addSubcommand(sub =>
-      sub
-        .setName("status")
-        .setDescription("Show voice configuration")
     ),
 
   async execute(interaction) {
-  const guildId = interaction.guildId;
-  const sub = interaction.options.getSubcommand();
+    const guildId = interaction.guildId;
+    const sub = interaction.options.getSubcommand();
 
-  if (sub === "lobby-add") {
-    const channel = interaction.options.getChannel("channel");
-    const category = interaction.options.getChannel("category");
+    if (sub === "add") {
+      const channel = interaction.options.getChannel("channel");
+      const category = interaction.options.getChannel("category");
+      const template =
+        interaction.options.getString("template") ?? "{user}'s room";
 
-    const added = await addLobby(guildId, channel.id, category.id);
+      const added = await addLobby(
+        guildId,
+        channel.id,
+        category.id,
+        template
+      );
 
-    await interaction.reply({
-      content: added
-        ? "Voice lobby added"
-        : "That voice lobby is already registered",
-      flags: 64
-    });
-    return;
+      await interaction.reply({
+        content: added
+          ? "Voice lobby added"
+          : "That voice lobby already exists",
+        flags: 64
+      });
+      return;
+    }
+
+    if (sub === "remove") {
+      const channel = interaction.options.getChannel("channel");
+
+      const removed = await removeLobby(guildId, channel.id);
+
+      await interaction.reply({
+        content: removed
+          ? "Voice lobby removed"
+          : "That voice lobby does not exist",
+        flags: 64
+      });
+      return;
+    }
+
+    if (sub === "status") {
+      const status = await getStatus(guildId);
+      await interaction.reply({
+        content:
+          "```json\n" +
+          JSON.stringify(status, null, 2) +
+          "\n```",
+        flags: 64
+      });
+      return;
+    }
+
+    if (sub === "reset") {
+      await resetVoice(guildId);
+      await interaction.reply({
+        content: "Voice configuration reset",
+        flags: 64
+      });
+    }
   }
-
-  if (sub === "lobby-remove") {
-    const channel = interaction.options.getChannel("channel");
-
-    // CRITICAL: pass the lobby channel ID verbatim
-    const removed = await removeLobby(guildId, channel.id);
-
-    await interaction.reply({
-      content: removed
-        ? "Voice lobby removed"
-        : "That voice lobby is already removed",
-      flags: 64
-    });
-    return;
-  }
-
-  if (sub === "reset") {
-    await resetVoice(guildId);
-    await interaction.reply({
-      content: "Voice configuration reset",
-      flags: 64
-    });
-    return;
-  }
-
-  if (sub === "status") {
-    const status = await getStatus(guildId);
-    await interaction.reply({
-      content: "```json\n" + JSON.stringify(status, null, 2) + "\n```",
-      flags: 64
-    });
-    return;
-  }
-}
 };
