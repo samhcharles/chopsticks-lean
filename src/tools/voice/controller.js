@@ -1,65 +1,78 @@
+// src/tools/voice/controller.js
 import { loadGuildData, saveGuildData } from "../../utils/storage.js";
 
-function ensureVoice(data) {
-  if (!data.voice) {
-    data.voice = { lobbies: {}, tempChannels: {} };
-  }
-  return data.voice;
-}
-export const getStatus = async guildId => {
+/* ---------- ADD LOBBY ---------- */
+
+export async function addLobby(guildId, channelId, categoryId, template) {
   const data = loadGuildData(guildId);
+  const voice = data.voice;
 
-  if (!data.voice) {
-    return {
-      lobbies: {},
-      tempChannels: {}
-    };
+  if (voice.lobbies[channelId]) {
+    return { ok: false, reason: "exists" };
   }
 
-  return data.voice;
-};
-
-export const addLobby = async (guildId, lobbyChannelId, categoryId) => {
-  const data = loadGuildData(guildId);
-  const voice = ensureVoice(data);
-
-  if (voice.lobbies[lobbyChannelId]?.enabled === true) {
-    return false;
-  }
-
-  voice.lobbies[lobbyChannelId] = {
-    categoryId,
-    enabled: true,
-    nameTemplate: "🔊 {user}"
-  };
-
-  saveGuildData(guildId, data);
-  return true;
-};
-
-export const removeLobby = async (guildId, lobbyChannelId) => {
-  const data = loadGuildData(guildId);
-  const voice = ensureVoice(data);
-
-  const lobby = voice.lobbies[lobbyChannelId];
-  if (!lobby || lobby.enabled === false) {
-    return false;
-  }
-
-  lobby.enabled = false;
-
-  for (const [id, temp] of Object.entries(voice.tempChannels)) {
-    if (temp.lobbyId === lobbyChannelId) {
-      delete voice.tempChannels[id];
+  for (const lobby of Object.values(voice.lobbies)) {
+    if (lobby.categoryId === categoryId) {
+      return { ok: false, reason: "category-bound" };
     }
   }
 
-  saveGuildData(guildId, data);
-  return true;
-};
+  voice.lobbies[channelId] = {
+    categoryId,
+    enabled: true,
+    nameTemplate: template
+  };
 
-export const resetVoice = async guildId => {
+  saveGuildData(guildId, data);
+  return { ok: true };
+}
+
+/* ---------- REMOVE LOBBY ---------- */
+
+export async function removeLobby(guildId, channelId) {
+  const data = loadGuildData(guildId);
+  const voice = data.voice;
+
+  if (!voice.lobbies[channelId]) {
+    return { ok: false, reason: "missing" };
+  }
+
+  delete voice.lobbies[channelId];
+  saveGuildData(guildId, data);
+  return { ok: true };
+}
+
+/* ---------- ENABLE / DISABLE ---------- */
+
+export async function setLobbyEnabled(guildId, channelId, enabled) {
+  const data = loadGuildData(guildId);
+  const lobby = data.voice.lobbies[channelId];
+
+  if (!lobby) {
+    return { ok: false, reason: "missing" };
+  }
+
+  // idempotent: same state is a success no-op
+  if (lobby.enabled === enabled) {
+    return { ok: true, noop: true };
+  }
+
+  lobby.enabled = enabled;
+  saveGuildData(guildId, data);
+  return { ok: true };
+}
+
+/* ---------- RESET ---------- */
+
+export async function resetVoice(guildId) {
   const data = loadGuildData(guildId);
   data.voice = { lobbies: {}, tempChannels: {} };
   saveGuildData(guildId, data);
-};
+}
+
+/* ---------- STATUS ---------- */
+
+export async function getStatus(guildId) {
+  const data = loadGuildData(guildId);
+  return data.voice;
+}

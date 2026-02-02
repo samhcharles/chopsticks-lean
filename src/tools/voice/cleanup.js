@@ -1,35 +1,35 @@
-import { ChannelType } from "discord.js";
-import { loadState, saveState } from "./state.js";
+// src/tools/voice/cleanup.js
+import { loadGuildData, saveGuildData } from "../../utils/storage.js";
 
-export async function cleanupVoiceState(client) {
-  const state = loadState();
+export async function cleanupVoice(client) {
+  for (const guild of client.guilds.cache.values()) {
+    let data;
+    try {
+      data = loadGuildData(guild.id);
+    } catch {
+      continue;
+    }
 
-  for (const guildId of Object.keys(state.guilds ?? {})) {
-    const guild = client.guilds.cache.get(guildId);
-    if (!guild) continue;
+    const voice = data.voice;
+    let mutated = false;
 
-    const guildState = state.guilds[guildId];
-    const active = guildState.activeChannels ?? {};
-
-    for (const channelId of Object.keys(active)) {
+    for (const [channelId, temp] of Object.entries(voice.tempChannels)) {
       const channel = guild.channels.cache.get(channelId);
 
-      if (!channel) {
-        delete active[channelId];
-        continue;
-      }
+      if (!channel || channel.members.size === 0) {
+        delete voice.tempChannels[channelId];
+        mutated = true;
 
-      if (channel.type !== ChannelType.GuildVoice) {
-        delete active[channelId];
-        continue;
-      }
-
-      if (channel.members.size === 0) {
-        await channel.delete().catch(() => {});
-        delete active[channelId];
+        if (channel) {
+          await channel.delete().catch(() => {});
+        }
       }
     }
-  }
 
-  saveState(state);
+    if (mutated) {
+      try {
+        saveGuildData(guild.id, data);
+      } catch {}
+    }
+  }
 }

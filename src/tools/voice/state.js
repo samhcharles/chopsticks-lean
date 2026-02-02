@@ -51,3 +51,10 @@ export function findUserTempChannel(guildId, userId, lobbyId) {
 
   return null;
 }
+export function ensureVoiceState(data) {
+  if (!data.voice) {
+    data.voice = { lobbies: {}, tempChannels: {} };
+  }
+  if (!data.voice.lobbies) data.voice.lobbies = {};
+  if (!data.voice.tempChannels) data.voice.tempChannels = {};
+}
