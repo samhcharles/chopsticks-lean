@@ -12,6 +12,14 @@ export function createAgentLavalink(agentClient) {
   const ctxBySession = new Map(); // sessionKey -> ctx
   const locks = new Map(); // sessionKey -> Promise chain
 
+  function clampMs(v, fallback, min, max) {
+    const n = Number(v);
+    if (!Number.isFinite(n)) return fallback;
+    return Math.min(max, Math.max(min, Math.trunc(n)));
+  }
+
+  const STOP_GRACE_MS = clampMs(process.env.MUSIC_STOP_GRACE_MS, 15_000, 0, 300_000);
+
   function ensureRawHook() {
     if (rawHooked) return;
     rawHooked = true;
@@ -28,7 +36,6 @@ export function createAgentLavalink(agentClient) {
     if (manager.__chopsticksBound) return;
     manager.__chopsticksBound = true;
 
-    // Prevent process-killing unhandled 'error' events.
     try {
       manager.on("error", err => {
         console.error("[agent:lavalink:manager:error]", err?.message ?? err);
@@ -104,7 +111,6 @@ export function createAgentLavalink(agentClient) {
       .catch(() => {})
       .then(fn)
       .finally(() => {
-        // keep chain short
         if (locks.get(key) === next) locks.delete(key);
       });
 
@@ -112,13 +118,151 @@ export function createAgentLavalink(agentClient) {
     return next;
   }
 
-  async function createOrGetSession({ guildId, voiceChannelId, textChannelId, ownerId }) {
+  function withCtxLock(ctx, fn) {
+    const key = sessionKey(ctx.guildId, ctx.voiceChannelId);
+    return withSessionLock(key, fn);
+  }
+
+  function assertOwner(ctx, userId) {
+    if (!userId) throw new Error("missing-owner");
+    if (ctx.ownerId !== userId) throw new Error("not-owner");
+  }
+
+  function getCurrent(player) {
+    return player?.queue?.current ?? null;
+  }
+
+  function getQueueTracks(player) {
+    const q = player?.queue;
+    if (!q) return [];
+    if (Array.isArray(q.tracks)) return q.tracks;
+    if (Array.isArray(q.items)) return q.items;
+    if (Array.isArray(q)) return q;
+    return [];
+  }
+
+  function bestEffortClearQueue(player) {
+    const q = player?.queue;
+    if (!q) return;
+
+    try {
+      if (typeof q.clear === "function") return q.clear();
+    } catch {}
+
+    try {
+      if (Array.isArray(q)) return void (q.length = 0);
+      if (Array.isArray(q.tracks)) return void (q.tracks.length = 0);
+      if (typeof q.splice === "function" && typeof q.length === "number") return void q.splice(0, q.length);
+    } catch {}
+  }
+
+  function markStopping(ctx, ms) {
+    ctx.__stopping = true;
+    ctx.__destroyAt = Date.now() + Math.max(0, Math.trunc(ms));
+    if (ctx.__destroyTimer) clearTimeout(ctx.__destroyTimer);
+    ctx.__destroyTimer = setTimeout(() => {
+      try {
+        destroySession(ctx.guildId, ctx.voiceChannelId);
+      } catch {}
+    }, Math.max(0, Math.trunc(ms)));
+  }
+
+  function stoppingRemainingMs(ctx) {
+    if (!ctx?.__stopping || !ctx.__destroyAt) return 0;
+    return Math.max(0, ctx.__destroyAt - Date.now());
+  }
+
+  function clearStopping(ctx) {
+    if (!ctx) return;
+    ctx.__stopping = false;
+    ctx.__destroyAt = null;
+    if (ctx.__destroyTimer) {
+      clearTimeout(ctx.__destroyTimer);
+      ctx.__destroyTimer = null;
+    }
+  }
+
+  async function safePause(player, state) {
+    try {
+      await Promise.resolve(player.pause(state));
+      return { ok: true, action: state ? "paused" : "resumed" };
+    } catch (err) {
+      const msg = String(err?.message ?? err);
+
+      if (state === true && msg.toLowerCase().includes("already paused")) {
+        return { ok: true, action: "already-paused" };
+      }
+      if (
+        state === false &&
+        (msg.toLowerCase().includes("already playing") || msg.toLowerCase().includes("not paused"))
+      ) {
+        return { ok: true, action: "already-playing" };
+      }
+
+      return { ok: false, error: msg };
+    }
+  }
+
+  async function softStopPlayback(player) {
+    // STOP AUDIO NOW, KEEP VOICE CONNECTED.
+    // Do NOT destroy the player here; destroy only after the grace timer.
+    try {
+      bestEffortClearQueue(player);
+    } catch {}
+
+    try {
+      if (typeof player.stop === "function") await Promise.resolve(player.stop());
+    } catch {}
+
+    // Force paused so "playing" doesn't keep flipping true for some node states.
+    try {
+      if (typeof player.pause === "function") await Promise.resolve(player.pause(true));
+    } catch {}
+  }
+
+  async function recreatePlayer(ctx) {
     if (!manager) throw new Error("lavalink-not-ready");
+    const player = manager.createPlayer({
+      guildId: ctx.guildId,
+      voiceChannelId: ctx.voiceChannelId,
+      textChannelId: ctx.textChannelId,
+      selfDeaf: true,
+      volume: 100
+    });
+    await player.connect();
+    ctx.player = player;
+    return player;
+  }
+
+  async function createOrGetSession({ guildId, voiceChannelId, textChannelId, ownerId, defaultMode }) {
+    if (!manager) throw new Error("lavalink-not-ready");
+    if (!guildId || !voiceChannelId) throw new Error("missing-session");
+    if (!ownerId) throw new Error("missing-owner");
 
     const key = sessionKey(guildId, voiceChannelId);
     return withSessionLock(key, async () => {
       const existing = ctxBySession.get(key);
-      if (existing) return existing;
+      if (existing) {
+        if (existing.ownerId && existing.ownerId !== ownerId && existing.mode === "dj") {
+          throw new Error("not-owner");
+        }
+        if (textChannelId) existing.textChannelId = textChannelId;
+        existing.lastActive = Date.now();
+
+        // Only /play cancels a pending stop timer.
+        clearStopping(existing);
+
+        // If player was destroyed (by destroySession), recreate.
+        try {
+          const p = existing.player;
+          const looksDead = !p || typeof p.play !== "function" || typeof p.queue?.add !== "function";
+          if (looksDead) await recreatePlayer(existing);
+        } catch {
+          await recreatePlayer(existing);
+        }
+
+        return existing;
+      }
 
       const player = manager.createPlayer({
         guildId,
@@ -136,7 +280,11 @@ export function createAgentLavalink(agentClient) {
         voiceChannelId,
         textChannelId,
         ownerId,
-        lastActive: Date.now()
+        mode: String(defaultMode ?? "open").toLowerCase() === "dj" ? "dj" : "open",
+        lastActive: Date.now(),
+        __stopping: false,
+        __destroyAt: null,
+        __destroyTimer: null
       };
 
       ctxBySession.set(key, ctx);
@@ -148,8 +296,11 @@ export function createAgentLavalink(agentClient) {
     return ctxBySession.get(sessionKey(guildId, voiceChannelId)) ?? null;
   }
 
-  function assertOwner(ctx, userId) {
-    if (ctx.ownerId !== userId) throw new Error("not-owner");
+  function getAnySessionInGuildForAgent(guildId) {
+    for (const ctx of ctxBySession.values()) {
+      if (ctx.guildId === guildId) return ctx;
+    }
+    return null;
   }
 
   async function search(ctx, query, requester) {
@@ -159,30 +310,112 @@ export function createAgentLavalink(agentClient) {
     return ctx.player.search({ query: identifier }, requester);
   }
 
+  // FIX: decide "playing vs queued" using pre-existing session state, not `player.playing` alone.
+  // Lavalink-client can transiently report `playing=false` even while a current track exists.
   async function enqueueAndPlay(ctx, track) {
-    ctx.lastActive = Date.now();
-    await ctx.player.queue.add(track);
-    if (!ctx.player.playing) await ctx.player.play();
+    return withCtxLock(ctx, async () => {
+      ctx.lastActive = Date.now();
+
+      // /play cancels stopping and revives the session
+      clearStopping(ctx);
+
+      // If player died, recreate
+      try {
+        const p = ctx.player;
+        const looksDead = !p || typeof p.play !== "function" || typeof p.queue?.add !== "function";
+        if (looksDead) await recreatePlayer(ctx);
+      } catch {
+        await recreatePlayer(ctx);
+      }
+
+      const player = ctx.player;
+
+      // Snapshot BEFORE mutating queue
+      const hadCurrent = Boolean(getCurrent(player));
+      const hadUpcoming = getQueueTracks(player).length > 0;
+      const hadPlaying = Boolean(player.playing);
+      const hadPaused = Boolean(player.paused);
+
+      await player.queue.add(track);
+
+      const shouldAutoStart = !(hadCurrent || hadUpcoming || hadPlaying || hadPaused);
+
+      if (shouldAutoStart) {
+        // Only when truly idle do we force resume+play.
+        try {
+          if (typeof player.pause === "function") await Promise.resolve(player.pause(false));
+        } catch {}
+
+        await player.play();
+        return { action: "playing" };
+      }
+
+      // Session already has state; this is an enqueue.
+      return { action: "queued" };
+    });
   }
 
-  function skip(ctx) {
-    ctx.lastActive = Date.now();
-    if (typeof ctx.player.skip === "function") ctx.player.skip();
+  function skip(ctx, actorUserId, requireOwnerMode = false) {
+    return withCtxLock(ctx, async () => {
+      if (requireOwnerMode) assertOwner(ctx, actorUserId);
+      ctx.lastActive = Date.now();
+
+      if (ctx.__stopping) {
+        return { ok: true, action: "stopping", disconnectInMs: stoppingRemainingMs(ctx) };
+      }
+
+      const player = ctx.player;
+      const current = getCurrent(player);
+      const upcoming = getQueueTracks(player);
+
+      if (!current && upcoming.length === 0) return { ok: true, action: "nothing-to-skip" };
+
+      if (upcoming.length > 0 && typeof player.skip === "function") {
+        try {
+          await Promise.resolve(player.skip());
+        } catch {}
+        return { ok: true, action: "skipped" };
+      }
+
+      // End of queue: stop audio now, leave later.
+      await softStopPlayback(player);
+      markStopping(ctx, STOP_GRACE_MS);
+      return { ok: true, action: "stopped", disconnectInMs: STOP_GRACE_MS };
+    });
   }
 
-  function pause(ctx, state) {
-    ctx.lastActive = Date.now();
-    if (typeof ctx.player.pause === "function") ctx.player.pause(state);
-  }
+  function pause(ctx, actorUserId, state, requireOwnerMode = false) {
+    return withCtxLock(ctx, async () => {
+      if (requireOwnerMode) assertOwner(ctx, actorUserId);
+      ctx.lastActive = Date.now();
 
-  function bestEffortClearQueue(player) {
-    const q = player?.queue;
-    if (!q) return;
+      if (ctx.__stopping) {
+        return { ok: true, action: "stopping", disconnectInMs: stoppingRemainingMs(ctx) };
+      }
 
-    if (typeof q.clear === "function") return q.clear();
-    if (Array.isArray(q)) return void (q.length = 0);
-    if (Array.isArray(q.tracks)) return void (q.tracks.length = 0);
-    if (typeof q.splice === "function" && typeof q.length === "number") return void q.splice(0, q.length);
+      const player = ctx.player;
+
+      const paused = Boolean(player.paused);
+      const playing = Boolean(player.playing);
+      const current = getCurrent(player);
+
+      if (state === true) {
+        if (!current && !playing) return { ok: true, action: "nothing-playing" };
+        if (paused && !playing) return { ok: true, action: "already-paused" };
+
+        const res = await safePause(player, true);
+        if (!res.ok) throw new Error(res.error || "pause-failed");
+        return { ok: true, action: res.action ?? "paused" };
+      }
+
+      // resume
+      if (!current && !playing && !paused) return { ok: true, action: "nothing-playing" };
+      if (!paused && playing) return { ok: true, action: "already-playing" };
+
+      const res = await safePause(player, false);
+      if (!res.ok) throw new Error(res.error || "resume-failed");
+      return { ok: true, action: res.action ?? "resumed" };
+    });
   }
 
   function destroySession(guildId, voiceChannelId) {
@@ -190,33 +423,63 @@ export function createAgentLavalink(agentClient) {
     const ctx = ctxBySession.get(key);
     if (!ctx) return;
 
+    clearStopping(ctx);
+
     try {
-      if (typeof ctx.player.destroy === "function") ctx.player.destroy();
+      if (typeof ctx.player?.destroy === "function") ctx.player.destroy();
     } catch {}
 
     ctxBySession.delete(key);
   }
 
-  function stop(ctx) {
-    ctx.lastActive = Date.now();
-    try {
-      bestEffortClearQueue(ctx.player);
-      if (typeof ctx.player.stop === "function") ctx.player.stop();
-    } finally {
-      destroySession(ctx.guildId, ctx.voiceChannelId);
+  function stop(ctx, actorUserId, requireOwnerMode = false) {
+    return withCtxLock(ctx, async () => {
+      if (requireOwnerMode) assertOwner(ctx, actorUserId);
+      ctx.lastActive = Date.now();
+
+      if (ctx.__stopping) {
+        return { ok: true, action: "stopping", disconnectInMs: stoppingRemainingMs(ctx) };
+      }
+
+      await softStopPlayback(ctx.player);
+      markStopping(ctx, STOP_GRACE_MS);
+      return { ok: true, action: "stopped", disconnectInMs: STOP_GRACE_MS };
+    });
+  }
+
+  function destroyAllSessionsInGuild(guildId) {
+    const keys = [];
+    for (const [k, ctx] of ctxBySession.entries()) {
+      if (ctx.guildId === guildId) keys.push(k);
     }
+    for (const k of keys) {
+      const [g, v] = String(k).split(":");
+      if (g && v) destroySession(g, v);
+    }
+  }
+
+  function setMode(ctx, actorUserId, mode) {
+    return withCtxLock(ctx, async () => {
+      ctx.lastActive = Date.now();
+      const m = String(mode ?? "").toLowerCase() === "open" ? "open" : "dj";
+      if (m === "dj") ctx.ownerId = actorUserId;
+      ctx.mode = m;
+      return { ok: true, action: "mode-set", mode: ctx.mode, ownerId: ctx.ownerId ?? null };
+    });
   }
 
   return {
     start,
     createOrGetSession,
     getSession,
-    assertOwner,
+    getAnySessionInGuildForAgent,
     search,
     enqueueAndPlay,
     skip,
     pause,
     stop,
-    destroySession
+    destroySession,
+    destroyAllSessionsInGuild,
+    setMode
   };
 }

@@ -17,6 +17,9 @@ export class AgentManager {
     this.agents = new Map(); // agentId -> agent
     this.pending = new Map(); // requestId -> { resolve, reject, timeout }
     this.sessions = new Map(); // sessionKey -> agentId
+
+    // Hardening: fair selection per guild
+    this.guildCursors = new Map(); // guildId -> last selected index
   }
 
   async start() {
@@ -70,24 +73,10 @@ export class AgentManager {
       return;
     }
 
-    if (msg?.type === "hello") {
-      this.handleHello(ws, msg);
-      return;
-    }
-
-    if (msg?.type === "guilds") {
-      this.handleGuilds(ws, msg);
-      return;
-    }
-
-    if (msg?.type === "event") {
-      this.handleEvent(ws, msg);
-      return;
-    }
-
-    if (msg?.type === "resp") {
-      this.handleResponse(ws, msg);
-    }
+    if (msg?.type === "hello") return void this.handleHello(ws, msg);
+    if (msg?.type === "guilds") return void this.handleGuilds(ws, msg);
+    if (msg?.type === "event") return void this.handleEvent(ws, msg);
+    if (msg?.type === "resp") return void this.handleResponse(ws, msg);
   }
 
   handleHello(ws, msg) {
@@ -188,7 +177,7 @@ export class AgentManager {
     const existing = this.getSessionAgent(guildId, voiceChannelId);
     if (existing.ok) return existing;
 
-    const idle = this.findIdleAgentInGuild(guildId);
+    const idle = this.findIdleAgentInGuildRoundRobin(guildId);
     if (!idle) {
       const present = this.countPresentInGuild(guildId);
       if (present === 0) return { ok: false, reason: "no-agents-in-guild" };
@@ -199,14 +188,28 @@ export class AgentManager {
     return { ok: true, agent: idle };
   }
 
-  findIdleAgentInGuild(guildId) {
+  listIdleAgentsInGuild(guildId) {
+    const out = [];
     for (const agent of this.agents.values()) {
       if (!agent.ready || !agent.ws) continue;
       if (agent.busyKey) continue;
       if (!agent.guildIds.has(guildId)) continue;
-      return agent;
+      out.push(agent);
     }
-    return null;
+    // stable order: agentId string
+    out.sort((a, b) => String(a.agentId).localeCompare(String(b.agentId)));
+    return out;
+  }
+
+  findIdleAgentInGuildRoundRobin(guildId) {
+    const list = this.listIdleAgentsInGuild(guildId);
+    if (list.length === 0) return null;
+
+    const prev = this.guildCursors.get(guildId) ?? -1;
+    const nextIndex = (prev + 1) % list.length;
+    this.guildCursors.set(guildId, nextIndex);
+
+    return list[nextIndex];
   }
 
   countPresentInGuild(guildId) {
@@ -249,6 +252,7 @@ export class AgentManager {
 
   async request(agent, op, data, timeoutMs = 20_000) {
     if (!agent?.ws) throw new Error("agent-offline");
+    if (!agent.ready) throw new Error("agent-offline");
 
     const id = randomUUID();
     const payload = { type: "req", id, op, data };
@@ -263,11 +267,16 @@ export class AgentManager {
       this.pending.set(id, { resolve, reject, timeout });
     });
 
+    // Send after pending is registered to avoid races
     try {
       agent.ws.send(JSON.stringify(payload));
-    } catch (err) {
-      this.pending.delete(id);
-      throw err;
+    } catch {
+      const pending = this.pending.get(id);
+      if (pending) {
+        clearTimeout(pending.timeout);
+        this.pending.delete(id);
+      }
+      throw new Error("agent-offline");
     }
 
     return response;

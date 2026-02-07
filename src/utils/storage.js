@@ -19,12 +19,20 @@ function baseData() {
   return {
     schemaVersion: SCHEMA_VERSION,
     rev: 0,
-    voice: { lobbies: {}, tempChannels: {} }
+    voice: { lobbies: {}, tempChannels: {} },
+    music: { defaultMode: "open" } // "open" | "dj"
   };
 }
 
 function isPlainObject(v) {
   return v !== null && typeof v === "object" && !Array.isArray(v);
+}
+
+function normalizeMusic(raw) {
+  const m = isPlainObject(raw?.music) ? { ...raw.music } : {};
+  const defaultMode = String(m.defaultMode ?? "open").toLowerCase();
+  m.defaultMode = defaultMode === "dj" ? "dj" : "open";
+  return m;
 }
 
 function normalizeData(input) {
@@ -42,6 +50,7 @@ function normalizeData(input) {
   if (!isPlainObject(voice.tempChannels)) voice.tempChannels = {};
 
   out.voice = voice;
+  out.music = normalizeMusic(raw);
 
   out.schemaVersion = Number.isInteger(raw.schemaVersion) ? raw.schemaVersion : SCHEMA_VERSION;
   out.rev = Number.isInteger(raw.rev) && raw.rev >= 0 ? raw.rev : 0;
@@ -56,12 +65,22 @@ function detectNeedsMigration(raw, normalized) {
   if (!isPlainObject(raw)) return true;
   if (!Number.isInteger(raw.schemaVersion)) return true;
   if (!Number.isInteger(raw.rev)) return true;
+
   if (!isPlainObject(raw.voice)) return true;
   if (!isPlainObject(raw.voice.lobbies)) return true;
   if (!isPlainObject(raw.voice.tempChannels)) return true;
+
+  // music is now part of schema
+  if (!isPlainObject(raw.music)) return true;
+
   if ("lobbies" in raw || "tempChannels" in raw) return true;
+
   if (normalized.schemaVersion !== raw.schemaVersion) return true;
   if (normalized.rev !== raw.rev) return true;
+
+  // normalize could have corrected music fields
+  if (normalized.music?.defaultMode !== raw.music?.defaultMode) return true;
+
   return false;
 }
 
@@ -108,9 +127,7 @@ function writeAtomicJson(file, data) {
     } finally {
       fs.closeSync(fd);
     }
-  } catch {
-    // best-effort; not all FS support fsync reliably
-  }
+  } catch {}
 
   if (fs.existsSync(file)) {
     try {
@@ -118,7 +135,6 @@ function writeAtomicJson(file, data) {
     } catch {}
   }
 
-  // rename is atomic on same filesystem
   fs.renameSync(tmp, file);
 }
 
@@ -133,10 +149,16 @@ function mergeOnConflict(latest, incoming) {
     tempChannels: { ...a.voice.tempChannels, ...b.voice.tempChannels }
   };
 
+  const mergedMusic = {
+    ...a.music,
+    ...b.music
+  };
+
   return {
     ...a,
     ...b,
     voice: mergedVoice,
+    music: mergedMusic,
     schemaVersion: SCHEMA_VERSION
   };
 }
