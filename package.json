@@ -7,8 +7,8 @@
     "agents": "node src/agents/agentRunner.js",
     "docker:lavalink": "docker compose -f docker-compose.lavalink.yml up -d",
     "start": "npm run docker:lavalink && npm run bot",
-    "start:all": "concurrently -n main,agents \"npm run bot\" \"npm run agents\"",
-    "deploy:guild": "DEPLOY_MODE=guild node scripts/deployCommands.js",
+    "start:all": "concurrently --raw --prefix \"[{name}]\" --prefix-colors \"auto\" -n main,agents \"AUTO_START_AGENTS=false npm run bot\" \"npm run agents\""
+    ,"deploy:guild": "DEPLOY_MODE=guild node scripts/deployCommands.js",
     "deploy:global": "DEPLOY_MODE=global node scripts/deployCommands.js",
     "clear:guild": "CLEAR_MODE=guild node scripts/clearCommands.js",
     "clear:global": "CLEAR_MODE=global node scripts/clearCommands.js"

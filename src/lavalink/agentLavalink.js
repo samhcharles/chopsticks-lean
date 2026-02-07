@@ -1,8 +1,7 @@
 // src/lavalink/agentLavalink.js
 import { LavalinkManager } from "lavalink-client";
+import { request } from "undici";
 
-// One LavalinkManager per agent client.
-// Sessions are keyed by `${guildId}:${voiceChannelId}` to allow multi-channel per guild (via multiple agents).
 export function createAgentLavalink(agentClient) {
   if (!agentClient?.user?.id) throw new Error("agent-client-not-ready");
 
@@ -12,6 +11,11 @@ export function createAgentLavalink(agentClient) {
   const ctxBySession = new Map(); // sessionKey -> ctx
   const locks = new Map(); // sessionKey -> Promise chain
 
+  // Track Discord voice readiness for THIS agent user (per guild)
+  const voiceStateByGuild = new Map(); // guildId -> { channelId, sessionId }
+  const voiceServerByGuild = new Map(); // guildId -> { token, endpoint }
+  const voiceWaiters = new Map(); // guildId -> Array<{ vcId, resolve, reject, t }>
+
   function clampMs(v, fallback, min, max) {
     const n = Number(v);
     if (!Number.isFinite(n)) return fallback;
@@ -19,6 +23,10 @@ export function createAgentLavalink(agentClient) {
   }
 
   const STOP_GRACE_MS = clampMs(process.env.MUSIC_STOP_GRACE_MS, 15_000, 0, 300_000);
+
+  function sleep(ms) {
+    return new Promise(r => setTimeout(r, ms));
+  }
 
   function ensureRawHook() {
     if (rawHooked) return;
@@ -28,7 +36,53 @@ export function createAgentLavalink(agentClient) {
       try {
         manager?.sendRawData(d);
       } catch {}
+
+      // Record Discord voice readiness
+      try {
+        const t = d?.t;
+        const data = d?.d;
+        if (!t || !data) return;
+
+        if (t === "VOICE_STATE_UPDATE") {
+          const selfId = agentClient.user?.id;
+          if (!selfId) return;
+          if (String(data.user_id) !== String(selfId)) return;
+          const guildId = data.guild_id;
+          if (!guildId) return;
+
+          voiceStateByGuild.set(guildId, {
+            channelId: data.channel_id ?? null,
+            sessionId: data.session_id ?? null
+          });
+
+          resolveVoiceWaiters(guildId);
+          return;
+        }
+
+        if (t === "VOICE_SERVER_UPDATE") {
+          const guildId = data.guild_id;
+          if (!guildId) return;
+
+          voiceServerByGuild.set(guildId, {
+            token: data.token ?? null,
+            endpoint: data.endpoint ?? null
+          });
+
+          resolveVoiceWaiters(guildId);
+        }
+      } catch {}
     });
+  }
+
+  function isTransientSocketError(err) {
+    const msg = String(err?.message ?? err ?? "").toLowerCase();
+    return (
+      msg.includes("econnreset") ||
+      msg.includes("socket hang up") ||
+      msg.includes("unexpected server response") ||
+      msg.includes("closed") ||
+      msg.includes("1006")
+    );
   }
 
   function bindErrorHandlersOnce() {
@@ -38,18 +92,16 @@ export function createAgentLavalink(agentClient) {
 
     try {
       manager.on("error", err => {
+        if (isTransientSocketError(err)) return;
         console.error("[agent:lavalink:manager:error]", err?.message ?? err);
       });
     } catch {}
 
     try {
-      manager.nodeManager?.on?.("disconnect", node => {
-        console.error("[agent:lavalink:node:disconnect]", node?.options?.id ?? "node");
-      });
-      manager.nodeManager?.on?.("reconnecting", node => {
-        console.error("[agent:lavalink:node:reconnecting]", node?.options?.id ?? "node");
-      });
+      manager.nodeManager?.on?.("disconnect", () => {});
+      manager.nodeManager?.on?.("reconnecting", () => {});
       manager.nodeManager?.on?.("error", (node, err) => {
+        if (isTransientSocketError(err)) return;
         console.error(
           "[agent:lavalink:node:error]",
           node?.options?.id ?? "node",
@@ -66,7 +118,7 @@ export function createAgentLavalink(agentClient) {
       nodes: [
         {
           id: "main",
-          host: process.env.LAVALINK_HOST || "localhost",
+          host: process.env.LAVALINK_HOST || "127.0.0.1",
           port: Number(process.env.LAVALINK_PORT) || 2333,
           authorization: process.env.LAVALINK_PASSWORD || "youshallnotpass"
         }
@@ -75,10 +127,7 @@ export function createAgentLavalink(agentClient) {
         const guild = agentClient.guilds.cache.get(guildId);
         guild?.shard?.send(payload);
       },
-      client: {
-        id: agentClient.user.id,
-        username: agentClient.user.username
-      },
+      client: { id: agentClient.user.id, username: agentClient.user.username },
       autoSkip: true,
       playerOptions: {
         defaultSearchPlatform: "ytsearch",
@@ -90,8 +139,20 @@ export function createAgentLavalink(agentClient) {
     ensureRawHook();
     bindErrorHandlersOnce();
 
-    await manager.init({ id: agentClient.user.id, username: agentClient.user.username });
-    return manager;
+    const maxAttempts = clampMs(process.env.LAVALINK_INIT_RETRIES, 12, 1, 50);
+    let lastErr = null;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        await manager.init({ id: agentClient.user.id, username: agentClient.user.username });
+        return manager;
+      } catch (err) {
+        lastErr = err;
+        await sleep(Math.min(2000, 150 * attempt));
+      }
+    }
+
+    throw lastErr ?? new Error("lavalink-init-failed");
   }
 
   function sessionKey(guildId, voiceChannelId) {
@@ -119,8 +180,7 @@ export function createAgentLavalink(agentClient) {
   }
 
   function withCtxLock(ctx, fn) {
-    const key = sessionKey(ctx.guildId, ctx.voiceChannelId);
-    return withSessionLock(key, fn);
+    return withSessionLock(sessionKey(ctx.guildId, ctx.voiceChannelId), fn);
   }
 
   function assertOwner(ctx, userId) {
@@ -182,46 +242,143 @@ export function createAgentLavalink(agentClient) {
     }
   }
 
-  async function safePause(player, state) {
+  function isDiscordVoiceReady(guildId, voiceChannelId) {
+    const vs = voiceStateByGuild.get(guildId);
+    const vsv = voiceServerByGuild.get(guildId);
+    if (!vs || !vsv) return false;
+    if (!vs.sessionId || !vs.channelId) return false;
+    if (!vsv.token || !vsv.endpoint) return false;
+    if (String(vs.channelId) !== String(voiceChannelId)) return false;
+    return true;
+  }
+
+  function resolveVoiceWaiters(guildId) {
+    const list = voiceWaiters.get(guildId);
+    if (!list?.length) return;
+
+    const remaining = [];
+    for (const w of list) {
+      if (isDiscordVoiceReady(guildId, w.vcId)) {
+        clearTimeout(w.t);
+        w.resolve(true);
+      } else {
+        remaining.push(w);
+      }
+    }
+    if (remaining.length) voiceWaiters.set(guildId, remaining);
+    else voiceWaiters.delete(guildId);
+  }
+
+  function waitForDiscordVoiceReady(guildId, voiceChannelId, timeoutMs = 12_000) {
+    if (isDiscordVoiceReady(guildId, voiceChannelId)) return Promise.resolve(true);
+
+    return new Promise((resolve, reject) => {
+      const t = setTimeout(() => {
+        const list = voiceWaiters.get(guildId) ?? [];
+        const next = list.filter(x => x.resolve !== resolve);
+        if (next.length) voiceWaiters.set(guildId, next);
+        else voiceWaiters.delete(guildId);
+        reject(new Error("voice-not-ready"));
+      }, Math.max(500, Number(timeoutMs) || 12_000));
+
+      const list = voiceWaiters.get(guildId) ?? [];
+      list.push({ vcId: voiceChannelId, resolve, reject, t });
+      voiceWaiters.set(guildId, list);
+    });
+  }
+
+  // ----- REST backstops (authoritative) -----
+
+  function getNodeFromPlayer(player) {
+    return (
+      player?.node ||
+      player?._node ||
+      player?.connection?.node ||
+      manager?.nodeManager?.nodes?.get?.("main") ||
+      null
+    );
+  }
+
+  function getLavalinkSessionId(node) {
+    return (
+      node?.sessionId ||
+      node?.session_id ||
+      node?.session?.id ||
+      node?.session?.sessionId ||
+      node?.state?.sessionId ||
+      null
+    );
+  }
+
+  async function lavalinkPatch(player, guildId, body) {
+    const node = getNodeFromPlayer(player);
+    const sessionId = getLavalinkSessionId(node);
+
+    if (!node || !sessionId) return false;
+
+    const host = node?.options?.host || process.env.LAVALINK_HOST || "127.0.0.1";
+    const port = Number(node?.options?.port || process.env.LAVALINK_PORT || 2333);
+    const password = node?.options?.authorization || process.env.LAVALINK_PASSWORD || "youshallnotpass";
+
+    const url = `http://${host}:${port}/v4/sessions/${encodeURIComponent(
+      String(sessionId)
+    )}/players/${encodeURIComponent(String(guildId))}`;
+
     try {
-      await Promise.resolve(player.pause(state));
-      return { ok: true, action: state ? "paused" : "resumed" };
-    } catch (err) {
-      const msg = String(err?.message ?? err);
+      const res = await request(url, {
+        method: "PATCH",
+        headers: { Authorization: password, "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
 
-      if (state === true && msg.toLowerCase().includes("already paused")) {
-        return { ok: true, action: "already-paused" };
-      }
-      if (
-        state === false &&
-        (msg.toLowerCase().includes("already playing") || msg.toLowerCase().includes("not paused"))
-      ) {
-        return { ok: true, action: "already-playing" };
-      }
+      try {
+        await res.body.text();
+      } catch {}
 
-      return { ok: false, error: msg };
+      return res.statusCode >= 200 && res.statusCode < 300;
+    } catch {
+      return false;
     }
   }
 
-  async function softStopPlayback(player) {
-    // STOP AUDIO NOW, KEEP VOICE CONNECTED.
-    // Do NOT destroy the player here; destroy only after the grace timer.
+  async function ensureUnpaused(player, guildId) {
+    await lavalinkPatch(player, guildId, { paused: false });
+  }
+
+  async function ensurePaused(player, guildId) {
+    await lavalinkPatch(player, guildId, { paused: true });
+  }
+
+  async function restStopNow(player, guildId) {
+    // Hard stop: clear current track and pause.
+    // Matches what you’re already seeing in docker logs: {"track":{"encoded":null}}
+    await lavalinkPatch(player, guildId, {
+      track: { encoded: null },
+      paused: true,
+      position: 0
+    });
+  }
+
+  async function softStopPlayback(ctx) {
+    const player = ctx?.player;
+    if (!player) return;
+
     try {
       bestEffortClearQueue(player);
     } catch {}
 
+    // Authority: REST stop current track.
+    await restStopNow(player, ctx.guildId);
+
+    // Best-effort: also call lib stop (ignored if broken).
     try {
       if (typeof player.stop === "function") await Promise.resolve(player.stop());
-    } catch {}
-
-    // Force paused so "playing" doesn't keep flipping true for some node states.
-    try {
-      if (typeof player.pause === "function") await Promise.resolve(player.pause(true));
     } catch {}
   }
 
   async function recreatePlayer(ctx) {
     if (!manager) throw new Error("lavalink-not-ready");
+
     const player = manager.createPlayer({
       guildId: ctx.guildId,
       voiceChannelId: ctx.voiceChannelId,
@@ -229,7 +386,11 @@ export function createAgentLavalink(agentClient) {
       selfDeaf: true,
       volume: 100
     });
+
     await player.connect();
+    await waitForDiscordVoiceReady(ctx.guildId, ctx.voiceChannelId);
+    await ensureUnpaused(player, ctx.guildId);
+
     ctx.player = player;
     return player;
   }
@@ -249,10 +410,8 @@ export function createAgentLavalink(agentClient) {
         if (textChannelId) existing.textChannelId = textChannelId;
         existing.lastActive = Date.now();
 
-        // Only /play cancels a pending stop timer.
         clearStopping(existing);
 
-        // If player was destroyed (by destroySession), recreate.
         try {
           const p = existing.player;
           const looksDead = !p || typeof p.play !== "function" || typeof p.queue?.add !== "function";
@@ -273,6 +432,8 @@ export function createAgentLavalink(agentClient) {
       });
 
       await player.connect();
+      await waitForDiscordVoiceReady(guildId, voiceChannelId);
+      await ensureUnpaused(player, guildId);
 
       const ctx = {
         player,
@@ -310,16 +471,23 @@ export function createAgentLavalink(agentClient) {
     return ctx.player.search({ query: identifier }, requester);
   }
 
-  // FIX: decide "playing vs queued" using pre-existing session state, not `player.playing` alone.
-  // Lavalink-client can transiently report `playing=false` even while a current track exists.
+  async function forceStart(ctx) {
+    const player = ctx.player;
+
+    await waitForDiscordVoiceReady(ctx.guildId, ctx.voiceChannelId);
+    await ensureUnpaused(player, ctx.guildId);
+
+    await Promise.resolve(player.play());
+
+    await sleep(60);
+    await ensureUnpaused(player, ctx.guildId);
+  }
+
   async function enqueueAndPlay(ctx, track) {
     return withCtxLock(ctx, async () => {
       ctx.lastActive = Date.now();
-
-      // /play cancels stopping and revives the session
       clearStopping(ctx);
 
-      // If player died, recreate
       try {
         const p = ctx.player;
         const looksDead = !p || typeof p.play !== "function" || typeof p.queue?.add !== "function";
@@ -330,28 +498,17 @@ export function createAgentLavalink(agentClient) {
 
       const player = ctx.player;
 
-      // Snapshot BEFORE mutating queue
       const hadCurrent = Boolean(getCurrent(player));
       const hadUpcoming = getQueueTracks(player).length > 0;
       const hadPlaying = Boolean(player.playing);
-      const hadPaused = Boolean(player.paused);
 
       await player.queue.add(track);
 
-      const shouldAutoStart = !(hadCurrent || hadUpcoming || hadPlaying || hadPaused);
+      const wasIdle = !(hadCurrent || hadUpcoming || hadPlaying);
+      if (!wasIdle) return { action: "queued" };
 
-      if (shouldAutoStart) {
-        // Only when truly idle do we force resume+play.
-        try {
-          if (typeof player.pause === "function") await Promise.resolve(player.pause(false));
-        } catch {}
-
-        await player.play();
-        return { action: "playing" };
-      }
-
-      // Session already has state; this is an enqueue.
-      return { action: "queued" };
+      await forceStart(ctx);
+      return { action: "playing" };
     });
   }
 
@@ -370,6 +527,7 @@ export function createAgentLavalink(agentClient) {
 
       if (!current && upcoming.length === 0) return { ok: true, action: "nothing-to-skip" };
 
+      // If there is another track, try normal skip.
       if (upcoming.length > 0 && typeof player.skip === "function") {
         try {
           await Promise.resolve(player.skip());
@@ -377,8 +535,8 @@ export function createAgentLavalink(agentClient) {
         return { ok: true, action: "skipped" };
       }
 
-      // End of queue: stop audio now, leave later.
-      await softStopPlayback(player);
+      // End of queue: hard stop current track (REST), then grace timer.
+      await softStopPlayback(ctx);
       markStopping(ctx, STOP_GRACE_MS);
       return { ok: true, action: "stopped", disconnectInMs: STOP_GRACE_MS };
     });
@@ -394,27 +552,25 @@ export function createAgentLavalink(agentClient) {
       }
 
       const player = ctx.player;
-
-      const paused = Boolean(player.paused);
-      const playing = Boolean(player.playing);
       const current = getCurrent(player);
+      const queued = getQueueTracks(player).length;
 
       if (state === true) {
-        if (!current && !playing) return { ok: true, action: "nothing-playing" };
-        if (paused && !playing) return { ok: true, action: "already-paused" };
-
-        const res = await safePause(player, true);
-        if (!res.ok) throw new Error(res.error || "pause-failed");
-        return { ok: true, action: res.action ?? "paused" };
+        if (!current && !player.playing) return { ok: true, action: "nothing-playing" };
+        await ensurePaused(player, ctx.guildId);
+        return { ok: true, action: "paused" };
       }
 
-      // resume
-      if (!current && !playing && !paused) return { ok: true, action: "nothing-playing" };
-      if (!paused && playing) return { ok: true, action: "already-playing" };
+      if (!current && !player.playing) {
+        if (queued > 0) {
+          await forceStart(ctx);
+          return { ok: true, action: "resumed" };
+        }
+        return { ok: true, action: "nothing-playing" };
+      }
 
-      const res = await safePause(player, false);
-      if (!res.ok) throw new Error(res.error || "resume-failed");
-      return { ok: true, action: res.action ?? "resumed" };
+      await forceStart(ctx);
+      return { ok: true, action: "resumed" };
     });
   }
 
@@ -441,7 +597,7 @@ export function createAgentLavalink(agentClient) {
         return { ok: true, action: "stopping", disconnectInMs: stoppingRemainingMs(ctx) };
       }
 
-      await softStopPlayback(ctx.player);
+      await softStopPlayback(ctx);
       markStopping(ctx, STOP_GRACE_MS);
       return { ok: true, action: "stopped", disconnectInMs: STOP_GRACE_MS };
     });

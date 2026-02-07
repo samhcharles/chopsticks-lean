@@ -1,5 +1,4 @@
 // src/music/service.js
-
 export function getSessionAgent(guildId, voiceChannelId) {
   const mgr = global.agentManager;
   if (!mgr) return { ok: false, reason: "agents-not-ready" };
@@ -40,6 +39,7 @@ export function formatMusicError(reasonOrErr) {
   if (msg === "no-session") return "Nothing playing in this channel.";
   if (msg === "agent-offline") return "Music agent went offline. Try again.";
   if (msg === "agent-timeout") return "Music agent timed out. Try again.";
+  if (msg === "voice-not-ready") return "Voice connection not ready yet. Try again.";
 
   return "Command failed.";
 }

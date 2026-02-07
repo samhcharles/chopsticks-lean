@@ -31,7 +31,6 @@ function bindErrorHandlersOnce() {
   if (manager.__chopsticksBound) return;
   manager.__chopsticksBound = true;
 
-  // Prevent process-killing unhandled 'error' events.
   try {
     manager.on("error", err => {
       console.error("[lavalink:manager:error]", err?.message ?? err);
@@ -57,6 +56,35 @@ function bindErrorHandlersOnce() {
   } catch {}
 }
 
+function getPauseFn(player) {
+  if (typeof player?.pause === "function") return player.pause.bind(player);
+  if (typeof player?.setPaused === "function") return v => player.setPaused(Boolean(v));
+  return null;
+}
+
+async function setPaused(player, state) {
+  const fn = getPauseFn(player);
+  if (!fn) throw new Error("player-pause-missing");
+  await Promise.resolve(fn(Boolean(state)));
+}
+
+async function waitForVoiceReady(player, timeoutMs = 10_000) {
+  const startAt = Date.now();
+  const hasVoice = () => {
+    const v = player?.voice ?? player?.connection ?? player?.player?.voice;
+    const token = v?.token ?? player?.voice?.token;
+    const endpoint = v?.endpoint ?? player?.voice?.endpoint;
+    const sessionId = v?.sessionId ?? player?.voice?.sessionId;
+    return Boolean(token && endpoint && sessionId);
+  };
+
+  while (Date.now() - startAt < timeoutMs) {
+    if (hasVoice()) return true;
+    await new Promise(r => setTimeout(r, 100));
+  }
+  return false;
+}
+
 export function initLavalink(client) {
   if (manager) return manager;
   if (!client?.user?.id) throw new Error("client-not-ready");
@@ -65,7 +93,7 @@ export function initLavalink(client) {
     nodes: [
       {
         id: "main",
-        host: process.env.LAVALINK_HOST || "localhost",
+        host: process.env.LAVALINK_HOST || "127.0.0.1",
         port: Number(process.env.LAVALINK_PORT) || 2333,
         authorization: process.env.LAVALINK_PASSWORD || "youshallnotpass"
       }
@@ -135,6 +163,7 @@ export async function createOrGetPlayer({ guildId, voiceChannelId, textChannelId
   });
 
   await player.connect();
+  await waitForVoiceReady(player).catch(() => false);
 
   const ctx = {
     player,
@@ -153,15 +182,28 @@ export async function searchOnPlayer(ctx, query, requester) {
   const identifier = normalizeSearchQuery(query);
   if (!identifier) return { tracks: [] };
   if (typeof ctx?.player?.search !== "function") throw new Error("player-search-missing");
-
-  // lavalink-client v2.8.0 search is on player
   return ctx.player.search({ query: identifier }, requester);
 }
 
 export async function playFirst(ctx, track) {
   ctx.lastActive = Date.now();
+
+  const wasIdle = !ctx.player.playing && !(ctx.player.queue?.current);
   await ctx.player.queue.add(track);
-  if (!ctx.player.playing) await ctx.player.play();
+  if (!wasIdle) return;
+
+  const okVoice = await waitForVoiceReady(ctx.player);
+  if (!okVoice) throw new Error("voice-not-ready");
+
+  try {
+    await setPaused(ctx.player, false);
+  } catch {}
+
+  await ctx.player.play();
+
+  try {
+    await setPaused(ctx.player, false);
+  } catch {}
 }
 
 export function skip(ctx) {
@@ -171,7 +213,7 @@ export function skip(ctx) {
 
 export function pause(ctx, state) {
   ctx.lastActive = Date.now();
-  if (typeof ctx.player.pause === "function") ctx.player.pause(state);
+  void setPaused(ctx.player, state);
 }
 
 function bestEffortClearQueue(player) {
