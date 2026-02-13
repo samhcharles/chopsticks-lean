@@ -372,12 +372,20 @@ client.once(Events.ClientReady, async () => {
   // When any bot (including agents) leaves a guild, update agent tracking
   client.on(Events.GuildDelete, async guild => {
     try {
+      console.log(`[GUILD_DELETE] Main bot removed from guild ${guild.id} (${guild.name})`);
+      
       // Check if any agent was in this guild and remove it
+      let removedCount = 0;
       for (const agent of mgr.liveAgents.values()) {
         if (agent.guildIds?.has?.(guild.id)) {
           agent.guildIds.delete(guild.id);
+          removedCount++;
           console.log(`[GUILD_DELETE] Removed agent ${agent.agentId} from guild ${guild.id}`);
         }
+      }
+      
+      if (removedCount > 0) {
+        console.log(`[GUILD_DELETE] Cleaned up ${removedCount} agent(s) from guild ${guild.id}`);
       }
     } catch (err) {
       console.error("[GUILD_DELETE] Error:", err.message);
@@ -386,11 +394,13 @@ client.once(Events.ClientReady, async () => {
 
   // Also verify agent guild membership when deploy is called
   const originalBuildDeployPlan = mgr.buildDeployPlan.bind(mgr);
-  mgr.buildDeployPlan = async function(guildId, desiredCount) {
+  mgr.buildDeployPlan = async function(guildId, desiredCount, poolId = null) {
     try {
       // Get the guild to verify all agents' membership
       const guild = await client.guilds.fetch(guildId).catch(() => null);
       if (guild) {
+        console.log(`[DEPLOY_VERIFY] Checking ${this.liveAgents.size} agents for guild ${guildId}`);
+        
         // Collect all bot user IDs to check
         const agentsToCheck = [];
         for (const agent of this.liveAgents.values()) {
@@ -399,26 +409,46 @@ client.once(Events.ClientReady, async () => {
           }
         }
 
+        console.log(`[DEPLOY_VERIFY] Found ${agentsToCheck.length} agents claiming to be in guild ${guildId}`);
+
         if (agentsToCheck.length > 0) {
           // Fetch all members at once (more efficient than one-by-one)
-          const members = await guild.members.fetch({ user: agentsToCheck.map(a => a.botUserId) }).catch(() => new Map());
+          const members = await guild.members.fetch({ 
+            user: agentsToCheck.map(a => a.botUserId),
+            force: true // Force cache refresh to ensure accuracy
+          }).catch(err => {
+            console.error(`[DEPLOY_VERIFY] Failed to fetch members:`, err.message);
+            return new Map();
+          });
+          
+          console.log(`[DEPLOY_VERIFY] Discord API returned ${members.size} members`);
           
           // Check which agents are missing
+          let removedCount = 0;
           for (const agent of agentsToCheck) {
             if (!members.has(agent.botUserId)) {
               // Bot was kicked but we didn't know
               agent.guildIds.delete(guildId);
-              console.log(`[DEPLOY_VERIFY] Agent ${agent.agentId} is no longer in guild ${guildId} (was kicked)`);
+              removedCount++;
+              console.log(`[DEPLOY_VERIFY] Agent ${agent.agentId} (${agent.botUserId}) removed from guild ${guildId} - not found in member list`);
+            } else {
+              console.log(`[DEPLOY_VERIFY] Agent ${agent.agentId} (${agent.botUserId}) confirmed in guild ${guildId}`);
             }
           }
+          
+          if (removedCount > 0) {
+            console.log(`[DEPLOY_VERIFY] Removed ${removedCount} stale agent(s) from guild ${guildId} cache`);
+          }
         }
+      } else {
+        console.warn(`[DEPLOY_VERIFY] Could not fetch guild ${guildId} - bot may not be in this guild`);
       }
     } catch (err) {
       console.error("[DEPLOY_VERIFY] Error verifying agent membership:", err.message);
     }
     
-    // Call original method
-    return originalBuildDeployPlan(guildId, desiredCount);
+    // Call original method with all parameters
+    return originalBuildDeployPlan(guildId, desiredCount, poolId);
   };
 });
 

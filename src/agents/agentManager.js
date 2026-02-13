@@ -182,8 +182,26 @@ export class AgentManager {
     const agent = this.liveAgents.get(agentId);
     if (!agent) return;
 
-    agent.guildIds = new Set(Array.isArray(msg?.guildIds) ? msg.guildIds : []);
+    const oldGuildIds = agent.guildIds ? Array.from(agent.guildIds) : [];
+    const newGuildIds = Array.isArray(msg?.guildIds) ? msg.guildIds : [];
+    
+    agent.guildIds = new Set(newGuildIds);
     agent.lastSeen = now();
+    
+    // Log changes for debugging
+    const added = newGuildIds.filter(g => !oldGuildIds.includes(g));
+    const removed = oldGuildIds.filter(g => !newGuildIds.includes(g));
+    
+    if (added.length > 0) {
+      console.log(`[GUILDS_UPDATE] Agent ${agentId} joined guilds: ${added.join(', ')}`);
+    }
+    if (removed.length > 0) {
+      console.log(`[GUILDS_UPDATE] Agent ${agentId} left guilds: ${removed.join(', ')}`);
+    }
+    
+    if (added.length === 0 && removed.length === 0 && newGuildIds.length > 0) {
+      console.log(`[GUILDS_UPDATE] Agent ${agentId} guild list unchanged (${newGuildIds.length} guilds)`);
+    }
   }
 
   handleEvent(ws, msg) { // Now directly from an agent

@@ -138,6 +138,11 @@ export const data = new SlashCommandBuilder()
       .addStringOption(o => o.setName("tag").setDescription("Bot username (e.g., MyBot#1234)").setRequired(true))
       .addStringOption(o => o.setName("pool").setDescription("Target pool ID (use /pools public to see options)").setRequired(false))
   )
+  .addSubcommand(s =>
+    s
+      .setName("verify_membership")
+      .setDescription("Force check which agents are actually in this guild (admin only)")
+  )
   .addSubcommand(s => s.setName("list_tokens").setDescription("View registered agents in accessible pools"))
   .addSubcommand(s =>
     s
@@ -366,6 +371,77 @@ export async function execute(interaction) {
         lines.push("2. Ensure agents are marked `active` using `/agents update_token_status`.");
         lines.push("3. Start `chopsticks-agent-runner` to bring agents online.");
         lines.push("4. Rerun `/agents deploy`.");
+    }
+
+    await interaction.editReply({ content: lines.join("\n").slice(0, 1900) });
+    return;
+  }
+
+  if (sub === "verify_membership") {
+    // Check admin permissions
+    if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
+      await interaction.reply({
+        flags: MessageFlags.Ephemeral,
+        content: "❌ Only server administrators can verify agent membership."
+      });
+      return;
+    }
+
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+    const guild = await interaction.guild.fetch();
+    const agentsToCheck = [];
+    
+    // Get all agents that claim to be in this guild
+    for (const agent of mgr.liveAgents.values()) {
+      if (agent.guildIds?.has?.(guildId) && agent.botUserId) {
+        agentsToCheck.push(agent);
+      }
+    }
+
+    if (agentsToCheck.length === 0) {
+      await interaction.editReply({
+        content: "✅ No agents claim to be in this guild.\n\nUse `/agents deploy` to invite agents."
+      });
+      return;
+    }
+
+    // Fetch actual members from Discord
+    const members = await guild.members.fetch({ 
+      user: agentsToCheck.map(a => a.botUserId),
+      force: true // Force cache refresh
+    }).catch(err => {
+      console.error("[VERIFY_MEMBERSHIP] Error fetching members:", err);
+      return new Map();
+    });
+
+    const lines = [];
+    lines.push(`**Agent Membership Verification**`);
+    lines.push(`Checked ${agentsToCheck.length} agent(s):\n`);
+
+    let verified = 0, removed = 0;
+
+    for (const agent of agentsToCheck) {
+      const inGuild = members.has(agent.botUserId);
+      
+      if (inGuild) {
+        lines.push(`✅ ${agent.agentId} (${agent.tag}) - In guild`);
+        verified++;
+      } else {
+        lines.push(`❌ ${agent.agentId} (${agent.tag}) - NOT in guild (removed from cache)`);
+        agent.guildIds.delete(guildId);
+        removed++;
+      }
+    }
+
+    lines.push("");
+    lines.push(`**Summary:**`);
+    lines.push(`✅ Verified: ${verified}`);
+    lines.push(`❌ Removed: ${removed}`);
+    
+    if (removed > 0) {
+      lines.push("");
+      lines.push("💡 Run `/agents deploy` to re-invite agents.");
     }
 
     await interaction.editReply({ content: lines.join("\n").slice(0, 1900) });
