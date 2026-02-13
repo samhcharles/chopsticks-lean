@@ -8,6 +8,7 @@ import {
   registerTempChannel,
   removeTempChannel,
   findUserTempChannel,
+  findAllUserTempChannels,
   acquireCreationLock,
   releaseCreationLock,
   canCreateTempChannel,
@@ -67,7 +68,7 @@ export default {
 
       setTimeout(() => {
         cleanup().catch(err => log("cleanup failed", { channelId, error: err?.message }));
-      }, 1000);
+      }, 500);
     }
 
     /* ---------- JOIN LOBBY ---------- */
@@ -77,6 +78,24 @@ export default {
     const lobby = voice.lobbies[newChannel.id];
     if (!lobby || lobby.enabled !== true) {
       log("no lobby or disabled", { channelId: newChannel.id });
+      
+      // User joined a non-lobby channel - cleanup any orphaned temp channels they own
+      const orphanedTempChannels = await findAllUserTempChannels(guild.id, member.id, voice);
+      for (const tempId of orphanedTempChannels) {
+        const temp = guild.channels.cache.get(tempId) ?? 
+                     await guild.channels.fetch(tempId).catch(() => null);
+        
+        // Only cleanup if channel exists, user is NOT in it, and it's empty
+        if (temp && member.voice.channelId !== tempId) {
+          const humans = Array.from(temp.members.values()).filter(m => !m.user?.bot).length;
+          if (humans === 0) {
+            await removeTempChannel(guild.id, tempId, voice);
+            await temp.delete().catch(() => {});
+            log("cleaned up orphaned temp channel", { tempId });
+          }
+        }
+      }
+      
       return;
     }
 
@@ -100,14 +119,44 @@ export default {
       }
     }
 
-    const lockId = `${newChannel.id}:${member.id}`;
+    const lockId = `user:${member.id}`;
     const acquired = acquireCreationLock(guild.id, lockId);
     if (!acquired) {
-      log("lock busy", { lockId });
+      log("lock busy - user already creating a channel", { lockId });
       return;
     }
 
     try {
+      // FIRST: Check if user has ANY temp channels (from any lobby) and clean them up
+      const allUserTempChannels = await findAllUserTempChannels(guild.id, member.id, voice);
+      
+      for (const oldTempId of allUserTempChannels) {
+        const oldTemp = guild.channels.cache.get(oldTempId) ?? 
+                        await guild.channels.fetch(oldTempId).catch(() => null);
+        
+        if (oldTemp) {
+          // Move user out if they're still in the old temp channel
+          if (member.voice.channelId === oldTempId) {
+            log("user still in old temp, cleanup deferred", { oldTempId });
+            // Don't cleanup yet - will happen via LEAVE TEMP logic
+            continue;
+          }
+          
+          // Check if empty
+          const humans = Array.from(oldTemp.members.values()).filter(m => !m.user?.bot).length;
+          if (humans === 0) {
+            await removeTempChannel(guild.id, oldTempId, voice);
+            await oldTemp.delete().catch(() => {});
+            log("cleaned up old temp channel", { oldTempId });
+          }
+        } else {
+          // Stale record
+          await removeTempChannel(guild.id, oldTempId, voice);
+          log("removed stale temp channel record", { oldTempId });
+        }
+      }
+      
+      // THEN: Check if user already has a temp channel for THIS specific lobby
       const existing = await findUserTempChannel(
         guild.id,
         member.id,
@@ -179,7 +228,11 @@ export default {
           return null;
         });
 
-      if (!channel) return;
+      if (!channel) {
+        // Failed to create - move user back to lobby or disconnect
+        await member.voice.setChannel(newChannel).catch(() => {});
+        return;
+      }
 
       await registerTempChannel(
         guild.id,
@@ -191,7 +244,20 @@ export default {
       markTempChannelCreated(guild.id, member.id);
       log("created temp channel", { tempChannelId: channel.id });
 
-      await member.voice.setChannel(channel).catch(() => {});
+      // Verify user is still in voice before moving them
+      await member.fetch().catch(() => null);
+      if (member.voice.channelId === newChannel.id) {
+        await member.voice.setChannel(channel).catch(() => {});
+      } else {
+        log("user left voice during creation", { userId: member.id });
+        // User left - cleanup the just-created channel
+        const humans = Array.from(channel.members.values()).filter(m => !m.user?.bot).length;
+        if (humans === 0) {
+          await removeTempChannel(guild.id, channel.id, voice);
+          await channel.delete().catch(() => {});
+          log("deleted unused temp channel", { channelId: channel.id });
+        }
+      }
     } finally {
       releaseCreationLock(guild.id, lockId);
     }

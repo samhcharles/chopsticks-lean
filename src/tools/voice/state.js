@@ -45,6 +45,18 @@ export async function findUserTempChannel(guildId, userId, lobbyId, voice) {
   return null;
 }
 
+export async function findAllUserTempChannels(guildId, userId, voice) {
+  const channels = ensureCache(guildId, voice);
+  const result = [];
+
+  for (const [channelId, data] of channels) {
+    if (data.ownerId === userId) {
+      result.push(channelId);
+    }
+  }
+  return result;
+}
+
 export function acquireCreationLock(guildId, lockId) {
   if (!creationLocks.has(guildId)) {
     creationLocks.set(guildId, new Set());
