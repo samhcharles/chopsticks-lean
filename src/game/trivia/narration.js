@@ -30,3 +30,66 @@ export function pickAgentThinkingLine(agentTag = "Agent") {
   return LINES[Math.floor(Math.random() * LINES.length)] || `${agentTag} is thinking...`;
 }
 
+export function pickAgentResultLine({ agentTag = "Agent", result = "tie", difficulty = "normal" } = {}) {
+  const d = String(difficulty || "normal").toLowerCase();
+  const tone = d === "nightmare" ? "ruthless" : d === "hard" ? "confident" : "casual";
+
+  const WIN = {
+    casual: [
+      `${agentTag}: gg.`,
+      `${agentTag}: nice try.`,
+      `${agentTag}: that one was clean.`
+    ],
+    confident: [
+      `${agentTag}: read it like a book.`,
+      `${agentTag}: locked.`,
+      `${agentTag}: you blinked.`
+    ],
+    ruthless: [
+      `${agentTag}: mercy denied.`,
+      `${agentTag}: you challenged the wrong pool.`,
+      `${agentTag}: predictable.`
+    ]
+  };
+
+  const LOSE = {
+    casual: [
+      `${agentTag}: gg, you got me.`,
+      `${agentTag}: fair.`,
+      `${agentTag}: okay, that was solid.`
+    ],
+    confident: [
+      `${agentTag}: lucky hit. run it back.`,
+      `${agentTag}: not bad. again.`,
+      `${agentTag}: fine. rematch.`
+    ],
+    ruthless: [
+      `${agentTag}: ...`,
+      `${agentTag}: again.`,
+      `${agentTag}: don’t get comfortable.`
+    ]
+  };
+
+  const TIE = {
+    casual: [
+      `${agentTag}: tie. run it back?`,
+      `${agentTag}: dead even.`,
+      `${agentTag}: balanced.`
+    ],
+    confident: [
+      `${agentTag}: stalemate. again.`,
+      `${agentTag}: close.`,
+      `${agentTag}: next one decides.`
+    ],
+    ruthless: [
+      `${agentTag}: unfinished.`,
+      `${agentTag}: insufficient.`,
+      `${agentTag}: again.`
+    ]
+  };
+
+  const pick = (arr) => arr[Math.floor(Math.random() * arr.length)] || `${agentTag}: gg.`;
+  if (result === "win") return pick(WIN[tone]);
+  if (result === "lose") return pick(LOSE[tone]);
+  return pick(TIE[tone]);
+}

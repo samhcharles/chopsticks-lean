@@ -29,10 +29,12 @@ export function agentAccuracyForDifficulty(difficulty) {
 
 export function agentDelayRangeMs(difficulty) {
   const d = String(difficulty || "normal").toLowerCase();
-  if (d === "easy") return [2500, 5500];
-  if (d === "hard") return [1100, 3500];
-  if (d === "nightmare") return [800, 2500];
-  return [1600, 4200];
+  // Hard minimum for realism: agent cannot lock in before 3s after the question is revealed.
+  // The command layer enforces the final dueAt as well; this is a "safe default".
+  if (d === "easy") return [3200, 7600];
+  if (d === "hard") return [3000, 5200];
+  if (d === "nightmare") return [3000, 4200];
+  return [3000, 6200];
 }
 
 export function pickAgentAnswer({ correctIndex, choicesLen, difficulty }) {
@@ -82,4 +84,3 @@ export function formatDifficulty(difficulty) {
   if (d === "nightmare") return "Nightmare";
   return "Normal";
 }
-

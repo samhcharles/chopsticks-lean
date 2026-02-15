@@ -11,7 +11,7 @@ import {
 import { Colors, replyError } from "../utils/discordOutput.js";
 import { pickTriviaQuestion, listTriviaCategories } from "../game/trivia/bank.js";
 import { makeTriviaSessionId, shuffleChoices, pickAgentAnswer, agentDelayRangeMs, computeReward, formatDifficulty } from "../game/trivia/engine.js";
-import { pickDmIntro, pickAgentThinkingLine } from "../game/trivia/narration.js";
+import { pickDmIntro, pickAgentThinkingLine, pickAgentResultLine } from "../game/trivia/narration.js";
 import {
   getActiveTriviaSessionId,
   setActiveTriviaSessionId,
@@ -22,9 +22,13 @@ import {
 } from "../game/trivia/session.js";
 import { addCredits } from "../economy/wallet.js";
 import { addGameXp } from "../game/profile.js";
+import { recordQuestEvent } from "../game/quests.js";
 
 const SESSION_TTL_SECONDS = 15 * 60;
 const QUESTION_TIME_LIMIT_MS = 30_000;
+const LOBBY_TIMEOUT_MS = 2 * 60 * 1000;
+const COUNTDOWN_SECONDS = 3;
+const AGENT_MIN_THINK_MS = 3_000;
 
 function formatAgentTextError(reasonOrErr) {
   const msg = String(reasonOrErr?.message ?? reasonOrErr);
@@ -75,7 +79,7 @@ function buildQuestionEmbed({ session, agentTag }) {
   return e;
 }
 
-function buildComponents(sessionId, { disabled = false } = {}) {
+function buildAnswerComponents(sessionId, { disabled = false } = {}) {
   const menu = new StringSelectMenuBuilder()
     .setCustomId(`trivia:sel:${sessionId}`)
     .setPlaceholder("Choose your answer…")
@@ -106,6 +110,44 @@ function buildComponents(sessionId, { disabled = false } = {}) {
   return [row1, row2];
 }
 
+function buildLobbyEmbed(session) {
+  const e = new EmbedBuilder()
+    .setTitle("🧩 Trivia Duel: Ready Check")
+    .setColor(Colors.INFO)
+    .setDescription(
+      `${pickDmIntro()}\n\n` +
+      `**Opponent:** ${session.agentTag}\n` +
+      `**Difficulty:** ${formatDifficulty(session.difficulty)}\n` +
+      `**Category:** ${String(session.category || "Any")}\n\n` +
+      `Press **Start** when you're ready.`
+    )
+    .setFooter({ text: "This lobby expires if you don't start." })
+    .setTimestamp();
+  return e;
+}
+
+function buildLobbyComponents(sessionId, { disabled = false } = {}) {
+  const startBtn = new ButtonBuilder()
+    .setCustomId(`trivia:btn:${sessionId}:start`)
+    .setLabel("Start")
+    .setStyle(ButtonStyle.Primary)
+    .setDisabled(Boolean(disabled));
+
+  const rulesBtn = new ButtonBuilder()
+    .setCustomId(`trivia:btn:${sessionId}:rules`)
+    .setLabel("Rules")
+    .setStyle(ButtonStyle.Secondary)
+    .setDisabled(Boolean(disabled));
+
+  const forfeitBtn = new ButtonBuilder()
+    .setCustomId(`trivia:btn:${sessionId}:forfeit`)
+    .setLabel("Cancel")
+    .setStyle(ButtonStyle.Danger)
+    .setDisabled(Boolean(disabled));
+
+  return [new ActionRowBuilder().addComponents(startBtn, rulesBtn, forfeitBtn)];
+}
+
 async function sendViaAgent({ agent, guildId, channelId, actorUserId, content, embeds }) {
   const mgr = global.agentManager;
   if (!mgr) throw new Error("agents-not-ready");
@@ -116,6 +158,99 @@ async function sendViaAgent({ agent, guildId, channelId, actorUserId, content, e
     content,
     embeds
   });
+}
+
+async function getSessionMessage(client, session) {
+  const channel = await client.channels.fetch(session.channelId).catch(() => null);
+  if (!channel?.isTextBased?.()) return { channel: null, msg: null };
+  const msg = session.messageId ? await channel.messages.fetch(session.messageId).catch(() => null) : null;
+  return { channel, msg };
+}
+
+async function showQuestion(client, sessionId) {
+  const session = await loadTriviaSession(sessionId);
+  if (!session || session.endedAt) return false;
+
+  // Reveal question (start timing here).
+  const revealedAt = Date.now();
+  session.stage = "question";
+  session.revealedAt = revealedAt;
+  session.expiresAt = revealedAt + QUESTION_TIME_LIMIT_MS;
+
+  const [minDelay, maxDelay] = agentDelayRangeMs(session.difficulty);
+  const rnd = Math.floor(minDelay + Math.random() * Math.max(1, (maxDelay - minDelay)));
+  session.agentDueAt = revealedAt + Math.max(AGENT_MIN_THINK_MS, rnd);
+
+  await saveTriviaSession(sessionId, session, SESSION_TTL_SECONDS);
+
+  const embed = buildQuestionEmbed({ session, agentTag: session.agentTag });
+  const { msg } = await getSessionMessage(client, session);
+  if (msg) {
+    await msg.edit({ embeds: [embed], components: buildAnswerComponents(sessionId, { disabled: false }) }).catch(() => {});
+  }
+
+  // Best-effort: agent "thinking" line.
+  try {
+    const mgr = global.agentManager;
+    const agent = mgr?.liveAgents?.get?.(session.agentId) || null;
+    if (agent?.ready) {
+      await sendViaAgent({
+        agent,
+        guildId: session.guildId,
+        channelId: session.channelId,
+        actorUserId: session.userId,
+        content: pickAgentThinkingLine(session.agentTag)
+      });
+    }
+  } catch {}
+
+  // Schedule agent answer.
+  setTimeout(() => {
+    maybeRunAgentAnswer(client, sessionId).catch(() => {});
+  }, Math.max(50, session.agentDueAt - Date.now()));
+
+  // Schedule question timeout.
+  setTimeout(() => {
+    (async () => {
+      const s = await loadTriviaSession(sessionId);
+      if (!s || s.endedAt) return;
+      if (!s.userLockedAt) {
+        s.userLockedAt = Date.now();
+        s.userPick = null;
+        await saveTriviaSession(sessionId, s, SESSION_TTL_SECONDS);
+      }
+      await maybeRunAgentAnswer(client, sessionId);
+      await finalizeSession(client, sessionId, { reason: "timeout" });
+    })().catch(() => {});
+  }, Math.max(1_000, session.expiresAt - Date.now() + 250));
+
+  return true;
+}
+
+async function runCountdown(client, sessionId) {
+  for (let i = COUNTDOWN_SECONDS; i >= 1; i -= 1) {
+    const session = await loadTriviaSession(sessionId);
+    if (!session || session.endedAt) return false;
+
+    const e = new EmbedBuilder()
+      .setTitle("⏳ Starting…")
+      .setColor(Colors.INFO)
+      .setDescription(`Question reveals in **${i}**…`)
+      .addFields(
+        { name: "Opponent", value: session.agentTag, inline: true },
+        { name: "Difficulty", value: formatDifficulty(session.difficulty), inline: true },
+        { name: "Category", value: String(session.category || "Any"), inline: true }
+      )
+      .setTimestamp();
+
+    const { msg } = await getSessionMessage(client, session);
+    if (msg) {
+      await msg.edit({ embeds: [e], components: buildLobbyComponents(sessionId, { disabled: true }) }).catch(() => {});
+    }
+
+    await new Promise(r => setTimeout(r, 1000));
+  }
+  return true;
 }
 
 async function finalizeSession(client, sessionId, { reason = "completed" } = {}) {
@@ -150,6 +285,43 @@ async function finalizeSession(client, sessionId, { reason = "completed" } = {})
   let xpRes = null;
   try {
     xpRes = await addGameXp(session.userId, reward.xp, { reason: `trivia:${result}` });
+  } catch {}
+
+  // Track quests (best-effort).
+  try { await recordQuestEvent(session.userId, "trivia_runs", 1); } catch {}
+  try { if (result === "win") await recordQuestEvent(session.userId, "trivia_wins", 1); } catch {}
+
+  // Agents gain XP too (stored on the agent bot user ID, not the internal agentId).
+  // No credits for agents.
+  const agentUserId = String(session.agentUserId || "").trim();
+  if (agentUserId) {
+    const agentAnsweredBeforeUser = Boolean(session.userLockedAt && session.agentLockedAt && session.agentLockedAt < session.userLockedAt);
+    const agentResult = result === "win" ? "lose" : result === "lose" ? "win" : "tie";
+    const agentReward = computeReward({ difficulty: session.difficulty, result: agentResult, answeredBeforeAgent: agentAnsweredBeforeUser });
+    try {
+      await addGameXp(agentUserId, agentReward.xp, { reason: `trivia-agent:${agentResult}` });
+    } catch {}
+  }
+
+  // Agent reaction line (best-effort, only for public duels).
+  try {
+    if (session.publicMode) {
+      const mgr = global.agentManager;
+      const agent = mgr?.liveAgents?.get?.(session.agentId) || null;
+      if (agent?.ready) {
+        await sendViaAgent({
+          agent,
+          guildId: session.guildId,
+          channelId: session.channelId,
+          actorUserId: session.userId,
+          content: pickAgentResultLine({
+            agentTag: session.agentTag,
+            result: result === "win" ? "lose" : result === "lose" ? "win" : "tie",
+            difficulty: session.difficulty
+          })
+        });
+      }
+    }
   } catch {}
 
   session.endedAt = Date.now();
@@ -192,14 +364,10 @@ async function finalizeSession(client, sessionId, { reason = "completed" } = {})
   }
 
   try {
-    const channel = await client.channels.fetch(session.channelId).catch(() => null);
-    if (channel?.isTextBased?.()) {
-      const msg = await channel.messages.fetch(session.messageId).catch(() => null);
-      if (msg) {
-        await msg.edit({ embeds: [e], components: [] }).catch(() => {});
-      } else {
-        await channel.send({ embeds: [e] }).catch(() => {});
-      }
+    const { channel, msg } = await getSessionMessage(client, session);
+    if (channel) {
+      if (msg) await msg.edit({ embeds: [e], components: [] }).catch(() => {});
+      else await channel.send({ embeds: [e] }).catch(() => {});
     }
   } catch {}
 
@@ -209,6 +377,7 @@ async function finalizeSession(client, sessionId, { reason = "completed" } = {})
 async function maybeRunAgentAnswer(client, sessionId) {
   const session = await loadTriviaSession(sessionId);
   if (!session || session.endedAt) return;
+  if (session.stage !== "question") return;
   if (session.agentPick !== null && session.agentPick !== undefined) return;
 
   const now = Date.now();
@@ -369,11 +538,8 @@ export default {
     const { shuffled, correctIndex } = shuffleChoices(q.choices, q.answerIndex);
     const sessionId = makeTriviaSessionId();
 
-    const [minDelay, maxDelay] = agentDelayRangeMs(difficulty);
-    const agentDueAt = Date.now() + Math.floor(minDelay + Math.random() * (maxDelay - minDelay));
-    const expiresAt = Date.now() + QUESTION_TIME_LIMIT_MS;
-
     const agentTag = lease.agent.tag ? lease.agent.tag : `Agent ${lease.agent.agentId}`;
+    const agentUserId = String(lease.agent.botUserId || "").trim() || null;
 
     const session = {
       sessionId,
@@ -387,10 +553,12 @@ export default {
       choices: shuffled.slice(0, 4),
       correctIndex,
       createdAt: Date.now(),
-      expiresAt,
-      agentDueAt,
+      stage: "lobby",
+      expiresAt: null,
+      agentDueAt: null,
       agentId: lease.agent.agentId,
       agentTag,
+      agentUserId,
       agentPick: null,
       agentLockedAt: null,
       userPick: null,
@@ -403,8 +571,8 @@ export default {
     await saveTriviaSession(sessionId, session, SESSION_TTL_SECONDS);
     await setActiveTriviaSessionId({ guildId, channelId, userId: interaction.user.id, sessionId, ttlSeconds: SESSION_TTL_SECONDS });
 
-    const embed = buildQuestionEmbed({ session, agentTag });
-    const components = buildComponents(sessionId, { disabled: false });
+    const embed = buildLobbyEmbed(session);
+    const components = buildLobbyComponents(sessionId, { disabled: false });
 
     const payload = {
       embeds: [embed],
@@ -417,35 +585,15 @@ export default {
     session.messageId = msg?.id || null;
     await saveTriviaSession(sessionId, session, SESSION_TTL_SECONDS);
 
-    // Best-effort: show "thinking" from agent, then answer at due time.
-    try {
-      await sendViaAgent({
-        agent: lease.agent,
-        guildId,
-        channelId,
-        actorUserId: interaction.user.id,
-        content: pickAgentThinkingLine(agentTag)
-      });
-    } catch {}
-
-    setTimeout(() => {
-      maybeRunAgentAnswer(interaction.client, sessionId).catch(() => {});
-    }, Math.max(250, agentDueAt - Date.now()));
-
+    // Lobby timeout cleanup (no silent dead sessions).
     setTimeout(() => {
       (async () => {
         const s = await loadTriviaSession(sessionId);
         if (!s || s.endedAt) return;
-        // Time's up: if user didn't lock, forfeit with minimal rewards.
-        if (!s.userLockedAt) {
-          s.userLockedAt = Date.now();
-          s.userPick = null;
-          await saveTriviaSession(sessionId, s, SESSION_TTL_SECONDS);
-        }
-        await maybeRunAgentAnswer(interaction.client, sessionId);
-        await finalizeSession(interaction.client, sessionId, { reason: "timeout" });
+        if (s.stage !== "lobby") return;
+        await finalizeSession(interaction.client, sessionId, { reason: "lobby-timeout" });
       })().catch(() => {});
-    }, Math.max(1_000, expiresAt - Date.now() + 250));
+    }, LOBBY_TIMEOUT_MS);
   }
 };
 
@@ -462,6 +610,10 @@ export async function handleSelect(interaction) {
     await interaction.reply({ content: "This duel belongs to another user.", flags: MessageFlags.Ephemeral });
     return true;
   }
+  if (session.stage !== "question") {
+    await interaction.reply({ content: "Not ready yet. Press Start first.", flags: MessageFlags.Ephemeral });
+    return true;
+  }
   if (session.userLockedAt) {
     await interaction.reply({ content: "Already locked in.", flags: MessageFlags.Ephemeral });
     return true;
@@ -472,7 +624,7 @@ export async function handleSelect(interaction) {
   await saveTriviaSession(sessionId, session, SESSION_TTL_SECONDS);
 
   const embed = buildQuestionEmbed({ session, agentTag: session.agentTag || "Agent" });
-  await interaction.update({ embeds: [embed], components: buildComponents(sessionId, { disabled: false }) });
+  await interaction.update({ embeds: [embed], components: buildAnswerComponents(sessionId, { disabled: false }) });
   return true;
 }
 
@@ -493,13 +645,45 @@ export async function handleButton(interaction) {
     return true;
   }
 
+  if (action === "rules") {
+    await interaction.reply({
+      content:
+        "Rules:\n" +
+        "- Press Start to begin.\n" +
+        "- Pick A/B/C/D from the dropdown.\n" +
+        "- Press Lock In to submit.\n" +
+        "- Agent will never answer in under 3 seconds after reveal.\n" +
+        "- You earn less XP for losing, more for winning.",
+      flags: MessageFlags.Ephemeral
+    });
+    return true;
+  }
+
+  if (action === "start") {
+    if (session.stage !== "lobby") {
+      await interaction.reply({ content: "Already started.", flags: MessageFlags.Ephemeral });
+      return true;
+    }
+    session.stage = "countdown";
+    await saveTriviaSession(sessionId, session, SESSION_TTL_SECONDS);
+
+    await interaction.update({ embeds: [buildLobbyEmbed(session)], components: buildLobbyComponents(sessionId, { disabled: true }) });
+    await runCountdown(interaction.client, sessionId);
+    await showQuestion(interaction.client, sessionId);
+    return true;
+  }
+
   if (action === "forfeit") {
-    await interaction.update({ embeds: [new EmbedBuilder().setColor(Colors.INFO).setTitle("Forfeited").setDescription("Ending duel…")], components: [] });
+    await interaction.update({ embeds: [new EmbedBuilder().setColor(Colors.INFO).setTitle("Cancelled").setDescription("Ending duel…")], components: [] });
     await finalizeSession(interaction.client, sessionId, { reason: "forfeit" });
     return true;
   }
 
   if (action === "lock") {
+    if (session.stage !== "question") {
+      await interaction.reply({ content: "Press Start first.", flags: MessageFlags.Ephemeral });
+      return true;
+    }
     if (session.userLockedAt) {
       await interaction.reply({ content: "Already locked in.", flags: MessageFlags.Ephemeral });
       return true;
@@ -512,7 +696,7 @@ export async function handleButton(interaction) {
     await saveTriviaSession(sessionId, session, SESSION_TTL_SECONDS);
 
     const embed = buildQuestionEmbed({ session, agentTag: session.agentTag || "Agent" });
-    await interaction.update({ embeds: [embed], components: buildComponents(sessionId, { disabled: true }) });
+    await interaction.update({ embeds: [embed], components: buildAnswerComponents(sessionId, { disabled: true }) });
 
     // If agent already answered, finalize now. Otherwise finalize when agent answers.
     await maybeRunAgentAnswer(interaction.client, sessionId);
