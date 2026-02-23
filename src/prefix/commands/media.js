@@ -2,9 +2,9 @@
 // Prefix command counterparts for media/info slash commands
 
 import { EmbedBuilder, AttachmentBuilder } from "discord.js";
-import { httpRequest } from "../utils/httpFetch.js";
-import { botLogger } from "../utils/modernLogger.js";
-import { sanitizeString } from "../utils/validation.js";
+import { httpRequest } from "../../utils/httpFetch.js";
+import { botLogger } from "../../utils/modernLogger.js";
+import { sanitizeString } from "../../utils/validation.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -57,6 +57,7 @@ export default [
   // 1. !fact
   {
     name: "fact",
+    aliases: ["facts", "interesting"],
     description: "Random interesting fact",
     rateLimit: 10000,
     execute: async (message) => {
@@ -90,6 +91,7 @@ export default [
   // 2. !dadjoke
   {
     name: "dadjoke",
+    aliases: ["dj", "dad", "pun"],
     description: "Random dad joke 🥁",
     rateLimit: 8000,
     execute: async (message) => {
@@ -128,6 +130,7 @@ export default [
   // 3. !joke [category]
   {
     name: "joke",
+    aliases: ["jokes", "j"],
     description: "Random joke. Usage: !joke [Programming|Misc|Dark|Pun|Spooky|Christmas]",
     rateLimit: 8000,
     execute: async (message, args) => {
@@ -166,6 +169,7 @@ export default [
   // 4. !wiki <query>
   {
     name: "wiki",
+    aliases: ["wikipedia", "w", "search"],
     description: "Wikipedia summary. Usage: !wiki <query>",
     rateLimit: 5000,
     execute: async (message, args) => {
@@ -202,6 +206,7 @@ export default [
   // 5. !github <username>
   {
     name: "github",
+    aliases: ["gh", "git"],
     description: "GitHub profile info. Usage: !github <username>",
     rateLimit: 5000,
     execute: async (message, args) => {
@@ -249,6 +254,7 @@ export default [
   // 6. !anime <title>
   {
     name: "anime",
+    aliases: ["ani", "manga"],
     description: "Search anime info. Usage: !anime <title>",
     rateLimit: 5000,
     execute: async (message, args) => {
@@ -307,6 +313,7 @@ export default [
   // 7. !book <query>
   {
     name: "book",
+    aliases: ["books", "novel", "read"],
     description: "Book info. Usage: !book <title or author>",
     rateLimit: 5000,
     execute: async (message, args) => {
@@ -347,6 +354,7 @@ export default [
   // 8. !urban <term>
   {
     name: "urban",
+    aliases: ["ud", "define", "slang"],
     description: "Urban Dictionary definition. Usage: !urban <term>",
     rateLimit: 5000,
     execute: async (message, args) => {
@@ -392,6 +400,7 @@ export default [
   // 9. !apod
   {
     name: "apod",
+    aliases: ["nasa", "space", "astronomy"],
     description: "NASA Astronomy Picture of the Day",
     rateLimit: 30000,
     execute: async (message) => {
@@ -428,6 +437,7 @@ export default [
   // 10. !steam <profile>
   {
     name: "steam",
+    aliases: ["st", "steamprofile"],
     description: "Steam profile lookup. Usage: !steam <vanity URL or steamid64>",
     rateLimit: 10000,
     execute: async (message, args) => {
@@ -482,6 +492,7 @@ export default [
   // 11. !color <hex>
   {
     name: "color",
+    aliases: ["colour", "hex", "clr"],
     description: "Color info from hex code. Usage: !color <#hex>",
     rateLimit: 3000,
     execute: async (message, args) => {

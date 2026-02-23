@@ -60,6 +60,7 @@ const balanceCmd = {
 // ---------------------------------------------------------------------------
 const dailyCmd = {
   name: "daily",
+  aliases: ["claim", "dr"],
   rateLimit: 5000,
   guildOnly: true,
   async execute(message) {
@@ -102,6 +103,7 @@ const JOB_TITLES = [
 
 const workCmd = {
   name: "work",
+  aliases: ["job", "earn"],
   rateLimit: 5000,
   guildOnly: true,
   async execute(message) {
@@ -263,6 +265,7 @@ const profileCmd = {
 // ---------------------------------------------------------------------------
 const xpCmd = {
   name: "xp",
+  aliases: ["exp", "level", "lvl", "rank"],
   rateLimit: 5000,
   guildOnly: true,
   async execute(message, args) {
