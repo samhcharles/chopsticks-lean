@@ -65,11 +65,8 @@ export async function execute(interaction) {
 
     await interaction.deferReply({ ephemeral: sub === 'me' });
 
-    const [stats, xpRow, achRows] = await Promise.all([
+    const [stats, achRows] = await Promise.all([
       getGuildStats(target.id, interaction.guildId).catch(() => null),
-      import('../utils/storage.js').then(s => s.getGuildXpLeaderboard
-        ? null
-        : null).catch(() => null),
       getUserAchievements(target.id, interaction.guildId).catch(() => []),
     ]);
 
