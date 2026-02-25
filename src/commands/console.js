@@ -46,8 +46,8 @@ function getJwtSecret() {
 export const meta = { category: "utility", deployGlobal: false };
 
 export const data = new SlashCommandBuilder()
-  .setName("console")
-  .setDescription("Open your server's Chopsticks control panel in a browser")
+  .setName("dashboard")
+  .setDescription("Open your server's Chopsticks dashboard in a browser")
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild);
 
 export async function execute(interaction) {
@@ -82,16 +82,16 @@ export async function execute(interaction) {
   const consoleUrl = `${baseUrl}/console-auth?token=${encodeURIComponent(token)}`;
 
   const button = new ButtonBuilder()
-    .setLabel("Open Console")
+    .setLabel("Open Dashboard")
     .setStyle(ButtonStyle.Link)
     .setURL(consoleUrl)
-    .setEmoji("🖥️");
+    .setEmoji("📊");
 
   const row = new ActionRowBuilder().addComponents(button);
 
   return interaction.reply({
     content:
-      `### 🖥️ Chopsticks Console\nYour personalized control panel for **${interaction.guild?.name ?? "this server"}** is ready.\n` +
+      `### 📊 Chopsticks Dashboard\nYour dashboard for **${interaction.guild?.name ?? "this server"}** is ready.\n` +
       `> ⏱️ This link expires in **10 minutes** and can only be used once.\n` +
       `> 🔒 Only you can access this session.`,
     components: [row],

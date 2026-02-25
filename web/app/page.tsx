@@ -74,7 +74,7 @@ export default function HomePage() {
                   { v: '60+', l: 'Commands' },
                   { v: '49', l: 'Concurrent players' },
                   { v: 'Agents', l: 'Near-human actors' },
-                  { v: 'Free', l: 'Forever' },
+                  { v: 'MIT', l: 'License' },
                 ].map(s => (
                   <div key={s.l} className="stat-item">
                     <span className="stat-value">{s.v}</span>
@@ -178,7 +178,7 @@ export default function HomePage() {
                 The <span className="gradient-text">Agent Pool.</span>
               </h2>
               <p style={{ fontSize: '1rem', color: 'var(--text-muted)', lineHeight: 1.75, marginBottom: '2rem', maxWidth: '480px' }}>
-                A community-powered system where bot tokens are pooled and dispatched to voice channels on demand. Servers request an agent — the pool handles the rest. No token management. No friction.
+                A community-powered system where bot tokens are pooled and dispatched to voice channels on demand. Create your own pool, bring your own API keys, and link them to your agents — or tap into what's already there. Your agents, your configuration.
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '2rem' }}>
                 {[
@@ -216,6 +216,7 @@ export default function HomePage() {
                 { step: '02', label: 'Pool finds an available bot', sub: 'encrypted token, dispatched securely', color: '#a78bfa' },
                 { step: '03', label: 'Bot joins the voice channel', sub: 'ready for music, AI, trivia, or greetings', color: 'var(--green)' },
                 { step: '04', label: 'Credits deducted, session runs', sub: 'admin configures actions and costs via /setup', color: '#f472b6' },
+                { step: '05', label: 'Bring your own keys → /agentkeys link', sub: 'OpenAI, Groq, Anthropic, ElevenLabs — your key, your quota', color: '#facc15' },
               ].map(item => (
                 <div key={item.step} style={{
                   background: 'var(--bg)', border: '1px solid var(--border)',
@@ -270,7 +271,7 @@ export default function HomePage() {
               <div style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#a78bfa', fontFamily: 'var(--font-heading)', marginBottom: '0.4rem' }}>In-server · No code</div>
               <h3 style={{ fontSize: '1.1rem', fontWeight: 700, letterSpacing: '-0.03em', color: 'var(--text)', fontFamily: 'var(--font-heading)', marginBottom: '0.75rem', lineHeight: 1.25 }}>Customize with /theme.</h3>
               <p style={{ fontSize: '0.83rem', color: 'var(--text-muted)', lineHeight: 1.7, marginBottom: '1.5rem', flex: 1 }}>
-                Change embed colors, rename the bot's persona, disable modules you don't need — all from inside Discord. Per-server. No code, no forks required.
+                Change embed colors, rename the bot's persona, disable modules you don't need — all from inside Discord. Link your own OpenAI, Groq, or ElevenLabs keys via <code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem', color: '#a78bfa', background: 'rgba(167,139,250,0.1)', padding: '0.05rem 0.3rem', borderRadius: '0.25rem' }}>/agentkeys</code> for richer, quota-free customization.
               </p>
               <a href="/docs#per-server" className="btn btn-ghost" style={{ fontSize: '0.82rem', padding: '0.65rem 1.25rem', width: '100%', justifyContent: 'center' }}>
                 View /theme docs <ArrowRightIcon size={13} />
@@ -399,6 +400,7 @@ export default function HomePage() {
               { href: GITHUB + '/issues', Icon: GitPullRequestIcon, label: 'Open an issue', desc: 'Found a bug or have a feature idea? Open an issue and let the community know.' },
               { href: GITHUB + '/pulls', Icon: GitHubIcon, label: 'Submit a PR', desc: 'Contributions of all sizes are welcome. Check CONTRIBUTING.md first.' },
               { href: '/tutorials', Icon: BookOpenIcon, label: 'Read the tutorials', desc: 'New here? The tutorials page covers everything from setup to self-hosting.' },
+              { href: GITHUB + '/discussions', Icon: PaletteIcon, label: 'Contribute game art', desc: 'We need artists. Help design sprites, icons, and UI assets for /game, /work, and economy rewards. Open a discussion to get started.' },
             ].map(item => (
               <a key={item.label} href={item.href} target={item.href.startsWith('http') ? '_blank' : undefined} rel={item.href.startsWith('http') ? 'noopener noreferrer' : undefined} className="community-card">
                 <div className="community-card-icon">
@@ -420,13 +422,13 @@ export default function HomePage() {
         <div className="container" style={{ textAlign: 'center' }}>
           <div className="badge" style={{ marginBottom: '1.5rem', marginLeft: 'auto', marginRight: 'auto', width: 'fit-content' }}>
             <span className="dot-live" />
-            Ready to add
+            Open source
           </div>
           <h2 style={{ fontSize: 'clamp(2rem, 5vw, 3.5rem)', fontWeight: 700, letterSpacing: '-0.045em', color: 'var(--text)', marginBottom: '1rem', fontFamily: 'var(--font-heading)', lineHeight: 1.05 }}>
-            No setup.<br /><span className="gradient-text">Just add it.</span>
+            Use it. Fork it.<br /><span className="gradient-text">Ship it.</span>
           </h2>
-          <p style={{ fontSize: '1rem', color: 'var(--text-muted)', marginBottom: '2.25rem', maxWidth: '360px', margin: '0 auto 2.25rem' }}>
-            Hosted by goot27. Free forever. 60+ commands ready the moment it joins.
+          <p style={{ fontSize: '1rem', color: 'var(--text-muted)', marginBottom: '2.25rem', maxWidth: '380px', margin: '0 auto 2.25rem' }}>
+            Use the instance hosted by goot27, or run your own. MIT licensed. 60+ commands, open to contributions.
           </p>
           <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap' }}>
             <a href={BOT_INVITE} target="_blank" rel="noopener noreferrer" className="btn btn-primary" style={{ padding: '0.95rem 2.25rem', fontSize: '0.95rem' }}>

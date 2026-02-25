@@ -279,7 +279,8 @@ All commands include rate limiting to ensure fair usage at scale:
 
 The following slash commands are only deployed to specific guilds (not global) and require the `BOT_OWNER_IDS` environment variable:
 
-- `/console` — Guild dashboard console
+- `/dashboard` — Guild dashboard (renamed from `/console`)
+- `/agentkeys` — Link your own API keys to your guild's agents (BYOK: OpenAI, Groq, Anthropic, ElevenLabs)
 - `/logs` — Bot log viewer  
 - `/model` — AI model configuration
 - `/scripts` — Automation script runner

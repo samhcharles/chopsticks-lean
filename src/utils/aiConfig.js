@@ -176,3 +176,62 @@ export async function resolveAiKey(guildId, userId) {
 
   return { provider: null, apiKey: null, ollamaUrl: null };
 }
+
+// ── Guild service keys (BYOK) ────────────────────────────────────────────────
+
+export const SERVICE_KEYS = ["openai", "groq", "anthropic", "elevenlabs"];
+
+export async function setGuildServiceKey(guildId, service, rawKey) {
+  if (!SERVICE_KEYS.includes(service)) throw new Error(`invalid_service:${service}`);
+  const encrypted = _encryptToken(rawKey);
+  const pool = activePool();
+  await retry(() => pool.query(`
+    INSERT INTO guild_settings (guild_id, data, rev)
+    VALUES ($1, jsonb_build_object('service_keys', jsonb_build_object($2::text, $3::text)), 1)
+    ON CONFLICT (guild_id) DO UPDATE SET
+      data = jsonb_set(
+        guild_settings.data,
+        ARRAY['service_keys', $2::text],
+        to_jsonb($3::text)
+      ),
+      rev = guild_settings.rev + 1,
+      updated_at = NOW()
+  `, [guildId, service, encrypted]), { retries: 2, minTimeout: 100 });
+}
+
+export async function getGuildServiceKey(guildId, service) {
+  if (!SERVICE_KEYS.includes(service)) return null;
+  const pool = activePool();
+  const res = await retry(() => pool.query(
+    "SELECT data FROM guild_settings WHERE guild_id = $1",
+    [guildId]
+  ), { retries: 2, minTimeout: 100 });
+  const enc = res.rows[0]?.data?.service_keys?.[service];
+  if (!enc) return null;
+  return _decryptToken(enc);
+}
+
+export async function removeGuildServiceKey(guildId, service) {
+  if (!SERVICE_KEYS.includes(service)) throw new Error(`invalid_service:${service}`);
+  const pool = activePool();
+  await retry(() => pool.query(`
+    UPDATE guild_settings SET
+      data = data #- ARRAY['service_keys', $2::text],
+      rev = rev + 1,
+      updated_at = NOW()
+    WHERE guild_id = $1
+  `, [guildId, service]), { retries: 2, minTimeout: 100 });
+}
+
+export async function listGuildServiceKeyStatus(guildId) {
+  const pool = activePool();
+  const res = await retry(() => pool.query(
+    "SELECT data FROM guild_settings WHERE guild_id = $1",
+    [guildId]
+  ), { retries: 2, minTimeout: 100 });
+  const keys = res.rows[0]?.data?.service_keys ?? {};
+  return SERVICE_KEYS.reduce((acc, s) => {
+    acc[s] = Boolean(keys[s]);
+    return acc;
+  }, {});
+}
