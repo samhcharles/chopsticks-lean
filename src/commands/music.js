@@ -29,6 +29,7 @@ import { handleInteractionError, handleSafeError, ErrorCategory } from "../utils
 import { getCache, setCache } from "../utils/redis.js";
 import { checkRateLimit } from "../utils/ratelimit.js";
 import { makeEmbed } from "../utils/discordOutput.js";
+import { musicNowPlaying } from "../utils/embedComponents.js";
 import { openAdvisorUiHandoff } from "./agents.js";
 import { botLogger } from "../utils/modernLogger.js";
 import { withTimeout } from "../utils/interactionTimeout.js";
@@ -341,19 +342,36 @@ function safeDeferEphemeral(interaction) {
 // makeEmbed removed - using imported version
 
 function buildTrackEmbed(action, track, { footer } = {}) {
-  const title = action === "playing" ? "Now Playing" : "Queued";
+  if (action === "playing") {
+    // Use the canonical musicNowPlaying embed component
+    const requester = track?.requester;
+    const requestedBy = requester
+      ? (requester.username || requester.displayName || requester.tag || null)
+      : null;
+    const dur = track?.duration ?? track?.length ?? 0;
+    return musicNowPlaying({
+      title:      track?.title ?? "Unknown title",
+      artist:     track?.author ?? null,
+      url:        track?.uri ?? null,
+      thumbnail:  track?.thumbnail ?? null,
+      duration:   dur,
+      position:   0,
+      requestedBy,
+    });
+  }
+
+  // "Queued" and other actions: keep existing format
   const fields = [];
   if (track?.author) fields.push({ name: "Artist", value: track.author, inline: true });
   const dur = track?.duration ?? track?.length;
   if (dur) fields.push({ name: "Duration", value: formatDuration(dur), inline: true });
-  // Null-safe requester handling
   const requester = track?.requester;
   if (requester && (requester.username || requester.displayName || requester.tag)) {
     const name = requester.username || requester.displayName || requester.tag;
     fields.push({ name: "Requested by", value: name, inline: true });
   }
   return makeEmbed(
-    title,
+    "Queued",
     track?.title ?? "Unknown title",
     fields,
     track?.uri ?? null,
