@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { Header, Footer } from './layout-components';
+import CursorTracker from './cursor';
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -9,7 +10,7 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: { default: 'Chopsticks', template: '%s — Chopsticks' },
-  description: 'A full-featured Discord bot with 60+ commands — music, moderation, economy, games, AI agents, and more. Free, open source, and self-hostable.',
+  description: 'A full-featured Discord bot with 162 prefix commands — music, moderation, economy, AI, games, leveling, and more. Free, open source, and self-hostable.',
   metadataBase: new URL('https://chopsticks.wokspec.org'),
   robots: { index: true, follow: true },
   openGraph: {
@@ -37,6 +38,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body>
+        <CursorTracker />
         <Header />
         <main>{children}</main>
         <Footer />

@@ -1,235 +1,315 @@
-import type { Metadata } from 'next';
-import {
-  DiscordIcon, GitHubIcon, DockerIcon, StarIcon, ArrowRightIcon,
-  ShieldIcon, MusicIcon, ZapIcon, CoinIcon, GamepadIcon, WrenchIcon, SparkleIcon,
-  ServerIcon, PaletteIcon, UsersIcon, GitPullRequestIcon, BookOpenIcon,
-  RadioIcon, CheckIcon,
-} from './icons';
-
-export const metadata: Metadata = {
-  title: 'Chopsticks — Discord Bot by WokSpec',
-  description: '100+ slash commands covering music, moderation, economy, games, AI, and the Agent Pool system. Open source, community-built.',
-  alternates: { canonical: 'https://chopsticks.wokspec.org' },
-};
+'use client';
+import React, { useState, useEffect, useRef } from 'react';
+import { MusicIcon, ShieldIcon, CoinIcon, SparkleIcon, GamepadIcon, ZapIcon, WrenchIcon, RadioIcon } from './icons';
 
 const BOT_INVITE = 'https://discord.com/api/oauth2/authorize?client_id=1466382874587431036&permissions=1099514858544&scope=bot%20applications.commands';
-const GITHUB = 'https://github.com/WokSpec/Chopsticks';
+const DISCORD_SERVER = 'https://discord.gg/chopsticks';
+const GITHUB_REPO = 'https://github.com/wokspec/chopsticks';
 
-const CATEGORIES = [
-  { name: 'Moderation', count: 14, Icon: ShieldIcon, cls: 'cat-mod', desc: 'Ban, kick, mute, warn, purge, lockdown, antinuke, antispam. Hierarchy-safe. Every action logged.' },
-  { name: 'Fun & Games', count: 27, Icon: GamepadIcon, cls: 'cat-games', desc: 'Trivia, battle, ship, Would You Rather, riddles, roast, gather, heist, quests. Built for active communities.' },
-  { name: 'Automation', count: 20, Icon: ZapIcon, cls: 'cat-auto', desc: 'Reaction roles, welcome messages, auto-roles, scheduled messages, custom commands, scripts. Set once.' },
-  { name: 'Economy', count: 7, Icon: CoinIcon, cls: 'cat-eco', desc: 'Credits, shop, daily claims, leaderboard, heist, auctions, profile cards. Keeps members engaged.' },
-  { name: 'Utility', count: 25, Icon: WrenchIcon, cls: 'cat-util', desc: 'Weather, polls, reminders, tags, server stats, XP info, bot analytics, audit tools.' },
-  { name: 'Music', count: 2, Icon: MusicIcon, cls: 'cat-music', desc: '49 concurrent sessions. YouTube, Spotify, SoundCloud. Agents can also read books, stories, or research papers aloud.' },
-  { name: 'AI', count: 6, Icon: SparkleIcon, cls: 'cat-ai', desc: 'Open source AI models. Chat, voice, near-human personas. Deploy agents, manage BYOK keys, configure AI behavior.' },
+// ─── Stat counter hook ────────────────────────────────────────────────────
+function useCounter(target: number, duration = 1600): number {
+  const [val, setVal] = useState(0);
+  const started = useRef(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = (ref as any).el;
+    const io = new IntersectionObserver(([e]) => {
+      if (e.isIntersecting && !started.current) {
+        started.current = true;
+        const start = performance.now();
+        const tick = (now: number) => {
+          const p = Math.min((now - start) / duration, 1);
+          setVal(Math.round(p * p * target));
+          if (p < 1) requestAnimationFrame(tick);
+          else setVal(target);
+        };
+        requestAnimationFrame(tick);
+        io.disconnect();
+      }
+    }, { threshold: 0.4 });
+    if (el) io.observe(el);
+    return () => io.disconnect();
+  }, [target, duration]);
+  return val;
+}
+
+// ─── Animated Discord mockup ──────────────────────────────────────────────
+const MESSAGES = [
+  { user: 'Wokspec', avatar: '🎧', content: '!play never gonna give you up', type: 'command' },
+  { user: 'Chopsticks', avatar: '🤖', content: '🎵 Now playing: **Never Gonna Give You Up** · Rick Astley\n02:47 ─────────────── 03:32', type: 'bot' },
+  { user: 'Kira', avatar: '⚡', content: '!balance', type: 'command' },
+  { user: 'Chopsticks', avatar: '🤖', content: '💰 Balance: **4,280 coins**\n🏦 Bank: **12,500 coins** · Rank #3', type: 'bot' },
+  { user: 'Nova', avatar: '🔮', content: '!ask What is the meaning of life?', type: 'command' },
+  { user: 'Chopsticks', avatar: '🤖', content: '🧠 **AI Response** · GPT-4o\n> 42. But also: connection, purpose, and good music.', type: 'bot' },
 ];
 
+function DiscordMockup() {
+  const [visible, setVisible] = useState<number[]>([]);
+  useEffect(() => {
+    MESSAGES.forEach((_, i) => {
+      setTimeout(() => setVisible(v => [...v, i]), i * 900 + 400);
+    });
+  }, []);
+  return (
+    <div style={{ background: '#23272a', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '1rem', overflow: 'hidden', boxShadow: '0 32px 80px rgba(0,0,0,0.5)', width: '100%', maxWidth: 460, fontFamily: 'var(--font-body)' }}>
+      {/* Title bar */}
+      <div style={{ background: '#1e2124', padding: '0.6rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#ff5f57', display: 'inline-block' }}/>
+        <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#febc2e', display: 'inline-block' }}/>
+        <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#28c840', display: 'inline-block' }}/>
+        <span style={{ flex: 1, textAlign: 'center', fontSize: '0.72rem', color: 'rgba(255,255,255,0.35)', fontFamily: 'var(--font-heading)' }}>#general · Chopsticks Demo</span>
+      </div>
+      {/* Messages */}
+      <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', minHeight: 280 }}>
+        {MESSAGES.map((m, i) => (
+          <div key={i} style={{ display: 'flex', gap: '0.625rem', alignItems: 'flex-start', opacity: visible.includes(i) ? 1 : 0, transform: visible.includes(i) ? 'translateY(0)' : 'translateY(8px)', transition: 'opacity 0.4s ease, transform 0.4s ease' }}>
+            <div style={{ width: 32, height: 32, borderRadius: '50%', background: m.type === 'bot' ? 'rgba(88,101,242,0.2)' : 'rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem', flexShrink: 0, border: m.type === 'bot' ? '1px solid rgba(88,101,242,0.4)' : '1px solid rgba(255,255,255,0.06)' }}>{m.avatar}</div>
+            <div>
+              <span style={{ fontSize: '0.78rem', fontWeight: 700, color: m.type === 'bot' ? '#7289da' : '#ffffff', fontFamily: 'var(--font-heading)' }}>{m.user}</span>
+              {m.type === 'command' && <span style={{ fontSize: '0.65rem', background: 'rgba(88,101,242,0.2)', color: '#a5b4fc', border: '1px solid rgba(88,101,242,0.3)', borderRadius: 3, padding: '0 0.3rem', marginLeft: '0.4rem', fontFamily: 'var(--font-mono)', fontWeight: 700 }}>prefix</span>}
+              <div style={{ fontSize: '0.825rem', color: m.type === 'command' ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.88)', marginTop: '0.15rem', whiteSpace: 'pre-line', lineHeight: 1.55 }}>{m.content}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Category grid ────────────────────────────────────────────────────────
+const FEATURES = [
+  {
+    cat: 'Music',
+    color: '#f472b6',
+    Icon: MusicIcon,
+    headline: 'Voice & Music',
+    body: 'Lavalink-backed voice sessions for up to 49 simultaneous channels. YouTube, Spotify & SoundCloud — with queue, shuffle, EQ, lyrics, and DJ roles.',
+    chips: ['!play', '!queue', '!shuffle', '!eq', '!lyrics', '!np'],
+  },
+  {
+    cat: 'Moderation',
+    color: '#fb923c',
+    Icon: ShieldIcon,
+    headline: 'Moderation',
+    body: 'Comprehensive mod toolkit: warn, ban, timeout, log channels, audit trails, auto-role, lockdown, and anti-raid protection built-in.',
+    chips: ['!ban', '!warn', '!timeout', '!lock', '!purge', '!case'],
+  },
+  {
+    cat: 'Economy',
+    color: '#4ade80',
+    Icon: CoinIcon,
+    headline: 'Economy',
+    body: 'Full virtual economy with coins, banking, shop listings, transfers, leaderboard, and daily/work earn commands. Server-scoped balances.',
+    chips: ['!balance', '!shop', '!pay', '!daily', '!work', '!top'],
+  },
+  {
+    cat: 'AI',
+    color: '#22d3ee',
+    Icon: SparkleIcon,
+    headline: 'AI Integration',
+    body: 'GPT-4o powered natural language in your server. Ask questions, summarise threads, translate, or let AI moderate your rules channel.',
+    chips: ['!ask', '!summarize', '!translate', '!aimodel', '/agents'],
+  },
+  {
+    cat: 'Fun & Games',
+    color: '#a78bfa',
+    Icon: GamepadIcon,
+    headline: 'Fun & Games',
+    body: 'Minigames, trivia, battle system, fishing, casino games, blackjack, hangman, and user profile cards. Keep your community engaged.',
+    chips: ['!trivia', '!battle', '!blackjack', '!hangman', '!fish', '!8ball'],
+  },
+  {
+    cat: 'Leveling',
+    color: '#facc15',
+    Icon: ZapIcon,
+    headline: 'Levels & XP',
+    body: 'Server-scoped XP system with level-up roles, configurable gain rates, and a rich rank card with progress bars.',
+    chips: ['!rank', '!top', '!setxp', '!levelroles'],
+  },
+  {
+    cat: 'Automation',
+    color: '#f472b6',
+    Icon: WrenchIcon,
+    headline: 'Automation',
+    body: 'Scheduled announcements, reaction roles, welcome messages, ticket system, and a full server setup dashboard — all in one place.',
+    chips: ['!reactionrole', '!welcome', '/tickets', '/dashboard'],
+  },
+];
+
+function hexToRgb(hex: string) {
+  return `${parseInt(hex.slice(1,3),16)},${parseInt(hex.slice(3,5),16)},${parseInt(hex.slice(5,7),16)}`;
+}
+
+function FeatureCard({ f }: { f: typeof FEATURES[0] }) {
+  const [hover, setHover] = useState(false);
+  return (
+    <div
+      className="glass-card"
+      style={{ cursor: 'default', borderColor: hover ? `rgba(${hexToRgb(f.color)},0.3)` : undefined, boxShadow: hover ? `0 0 32px rgba(${hexToRgb(f.color)},0.08)` : undefined, transition: 'border-color 0.25s, box-shadow 0.25s', padding: '1.5rem' }}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+    >
+      <div style={{ width: 40, height: 40, borderRadius: '0.625rem', background: `rgba(${hexToRgb(f.color)},0.1)`, border: `1px solid rgba(${hexToRgb(f.color)},0.2)`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: f.color, marginBottom: '1rem' }}>
+        <f.Icon size={18} />
+      </div>
+      <h3 style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: '1.05rem', color: 'var(--text)', marginBottom: '0.5rem' }}>{f.headline}</h3>
+      <p style={{ fontSize: '0.83rem', color: 'var(--text-muted)', lineHeight: 1.7, marginBottom: '0.875rem' }}>{f.body}</p>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem' }}>
+        {f.chips.map(c => (
+          <span key={c} style={{ fontFamily: 'var(--font-mono)', fontSize: '0.72rem', background: `rgba(${hexToRgb(f.color)},0.07)`, border: `1px solid rgba(${hexToRgb(f.color)},0.15)`, color: f.color, padding: '0.2rem 0.5rem', borderRadius: 4 }}>{c}</span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Agent role cards ─────────────────────────────────────────────────────
+const AGENT_ROLES = [
+  { id: 'radio',   label: 'Radio Agent',   color: '#f472b6', icon: '📻', desc: 'Hosts persistent voice sessions with zero downtime restarts.' },
+  { id: 'dj',      label: 'DJ Agent',      color: '#a78bfa', icon: '🎧', desc: 'Manages per-guild music queues, EQ presets, and DJ locks.' },
+  { id: 'guard',   label: 'Guard Agent',   color: '#fb923c', icon: '🛡️', desc: 'Monitors activity, enforces moderation rules in real time.' },
+  { id: 'banker',  label: 'Banker Agent',  color: '#4ade80', icon: '🏦', desc: 'Processes economy transactions and bank interest cycles.' },
+  { id: 'oracle',  label: 'Oracle Agent',  color: '#22d3ee', icon: '🔮', desc: 'Routes AI queries to GPT-4o with per-server persona config.' },
+  { id: 'herald',  label: 'Herald Agent',  color: '#facc15', icon: '📢', desc: 'Handles scheduled announcements, welcome flows, and crons.' },
+];
+
+// ─── 3-step How It Works ──────────────────────────────────────────────────
+const HOW_STEPS = [
+  { n: '01', title: 'Invite the bot', body: 'Click "Add to Discord" and grant the requested permissions. Chopsticks will auto-create its config channels.' },
+  { n: '02', title: 'Configure channels', body: 'Use /dashboard for a one-stop setup panel — log channels, welcome rooms, DJ roles, leveling, tickets, and economy rewards, all per-server.' },
+  { n: '03', title: 'Activate features', body: 'Each feature module is opt-in. Enable only what your community needs. Everything else stays off.' },
+];
+
+// ─── Page ─────────────────────────────────────────────────────────────────
 export default function HomePage() {
   return (
-    <>
-      {/* ── Hero ──────────────────────────────────── */}
-      <section style={{ position: 'relative', overflow: 'hidden', minHeight: '90vh', display: 'flex', alignItems: 'center' }} className="bg-grid">
-        <div className="orb orb-blue" style={{ width: 720, height: 720, top: -260, left: -200, opacity: 0.75 }} />
-        <div className="orb orb-violet" style={{ width: 520, height: 520, bottom: -160, right: -100, opacity: 0.7 }} />
+    <main>
+      {/* ── Hero ─────────────────────────────────────── */}
+      <section style={{ position: 'relative', overflow: 'hidden', minHeight: '88vh', display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--border)', background: 'var(--surface)' }} className="bg-grid">
+        <div className="orb orb-blue"   style={{ width: 700, height: 700, top: -250, left: -200, opacity: 0.45 }} />
+        <div className="orb orb-violet" style={{ width: 500, height: 500, bottom: -200, right: -150, opacity: 0.35 }} />
+        <div className="orb"            style={{ width: 300, height: 300, top: '30%', left: '55%', background: 'radial-gradient(circle, rgba(244,114,182,0.25), transparent 70%)', opacity: 0.5 }} />
 
-        <div className="container" style={{ position: 'relative', zIndex: 1, width: '100%', paddingTop: '5rem', paddingBottom: '5rem' }}>
-          <div className="hero-grid">
-            {/* Left */}
-            <div>
-              <div className="badge" style={{ marginBottom: '1.75rem' }}>
-                <span className="dot-live" />
-                Open source · by goot27
-              </div>
-
-              <h1 style={{
-                fontSize: 'clamp(3rem, 7vw, 5.5rem)',
-                fontWeight: 700,
-                letterSpacing: '-0.05em',
-                lineHeight: 1.0,
-                color: 'var(--text)',
-                marginBottom: '1.5rem',
-                fontFamily: 'var(--font-heading)',
-              }}>
-                The open source<br />
-                <span className="gradient-text">Discord bot.</span>
-              </h1>
-
-              <p style={{ fontSize: '1.05rem', color: 'var(--text-muted)', lineHeight: 1.75, maxWidth: '440px', marginBottom: '2.25rem' }}>
-                Music, moderation, economy, games, and AI agents — 100+ commands built and maintained by the community. Use the hosted instance or run your own.
-              </p>
-
-              <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '2.5rem' }}>
-                <a href={BOT_INVITE} target="_blank" rel="noopener noreferrer" className="btn btn-primary" style={{ padding: '0.875rem 1.875rem', fontSize: '0.9rem' }}>
-                  <DiscordIcon size={16} />
-                  Add to Discord
-                </a>
-                <a href={GITHUB} target="_blank" rel="noopener noreferrer" className="btn btn-ghost" style={{ padding: '0.875rem 1.5rem', fontSize: '0.9rem' }}>
-                  <StarIcon size={15} />
-                  Star on GitHub
-                </a>
-              </div>
-
-              <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', paddingTop: '2rem', borderTop: '1px solid var(--border)' }}>
-                {[
-                  { v: '101', l: 'Commands' },
-                  { v: '49', l: 'Concurrent sessions' },
-                  { v: 'Agents', l: 'Near-human actors' },
-                  { v: 'MIT', l: 'License' },
-                ].map(s => (
-                  <div key={s.l} className="stat-item">
-                    <span className="stat-value">{s.v}</span>
-                    <span className="stat-label">{s.l}</span>
-                  </div>
-                ))}
-              </div>
+        <div className="container" style={{ position: 'relative', zIndex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4rem', alignItems: 'center', padding: '5rem 1.5rem' }}>
+          {/* Left */}
+          <div>
+            <div className="badge" style={{ marginBottom: '1.5rem' }}>
+              <span className="dot-live" /> Live · Agent-powered Discord bot
             </div>
-
-            {/* Right — Discord mockup */}
-            <div style={{ position: 'relative' }}>
-              <div className="discord-window" style={{ fontSize: '13px' }}>
-                <div style={{ background: '#1e1f22', borderBottom: '1px solid rgba(0,0,0,0.3)', padding: '0.5rem 0.875rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <div style={{ display: 'flex', gap: '0.35rem' }}>
-                    {['#ef4444','#f59e0b','#22c55e'].map(c => <span key={c} style={{ width: 10, height: 10, borderRadius: '50%', background: c, opacity: 0.7 }} />)}
-                  </div>
-                  <span style={{ fontSize: '0.72rem', color: 'rgba(148,155,164,0.7)', marginLeft: '0.5rem', fontFamily: 'var(--font-mono)' }}>Wok Specialists · #bot-commands</span>
-                </div>
-                <div style={{ display: 'flex', height: 340 }}>
-                  <div className="discord-sidebar">
-                    <div style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(148,155,164,0.6)', padding: '0.75rem 0.6rem 0.4rem' }}>Text Channels</div>
-                    {['general','bot-commands','music','memes'].map((ch, i) => (
-                      <div key={ch} className={`discord-channel${i===1?' active':''}`}>{ch}</div>
-                    ))}
-                    <div style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(148,155,164,0.6)', padding: '0.75rem 0.6rem 0.4rem', marginTop: '0.5rem' }}>Voice Channels</div>
-                    <div className="discord-channel" style={{ paddingLeft: '0.6rem' }}>Lounge</div>
-                  </div>
-                  <div className="discord-messages">
-                    <div className="discord-msg">
-                      <div className="discord-avatar" style={{ background: '#5865f2', color: '#fff' }}>A</div>
-                      <div className="discord-msg-body">
-                        <div className="discord-msg-author" style={{ color: '#5865f2' }}>Alex<span style={{ fontSize: '0.68rem', color: 'rgba(148,155,164,0.5)', fontWeight: 400, marginLeft: '0.4rem' }}>Today at 3:14 PM</span></div>
-                        <div className="discord-msg-text discord-slash">/music play lofi hip hop</div>
-                      </div>
-                    </div>
-                    <div className="discord-msg">
-                      <div className="discord-avatar" style={{ background: 'linear-gradient(135deg,#38bdf8,#0284c7)', color: '#000', fontSize: '0.65rem', fontWeight: 800 }}>CH</div>
-                      <div className="discord-msg-body">
-                        <div className="discord-msg-author" style={{ color: '#38bdf8' }}>Chopsticks<span style={{ fontSize: '0.65rem', background: '#5865f2', color: '#fff', borderRadius: '0.2rem', padding: '0.05rem 0.3rem', marginLeft: '0.35rem', fontWeight: 700 }}>APP</span><span style={{ fontSize: '0.68rem', color: 'rgba(148,155,164,0.5)', fontWeight: 400, marginLeft: '0.4rem' }}>Today at 3:14 PM</span></div>
-                        <div className="discord-embed" style={{ borderLeftColor: '#f472b6' }}>
-                          <div className="discord-embed-title">Now Playing</div>
-                          <div className="discord-embed-body">lofi hip hop radio — beats to relax/study to</div>
-                          <div className="discord-embed-row">
-                            <div className="discord-embed-field"><span className="discord-embed-field-name">Duration</span><span className="discord-embed-field-val">Live</span></div>
-                            <div className="discord-embed-field"><span className="discord-embed-field-name">Requested by</span><span className="discord-embed-field-val">Alex</span></div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="discord-msg">
-                      <div className="discord-avatar" style={{ background: '#ed4245', color: '#fff' }}>M</div>
-                      <div className="discord-msg-body">
-                        <div className="discord-msg-author" style={{ color: '#ed4245' }}>Maya</div>
-                        <div className="discord-msg-text discord-slash">/balance</div>
-                      </div>
-                    </div>
-                    <div className="discord-msg">
-                      <div className="discord-avatar" style={{ background: 'linear-gradient(135deg,#38bdf8,#0284c7)', color: '#000', fontSize: '0.65rem', fontWeight: 800 }}>CH</div>
-                      <div className="discord-msg-body">
-                        <div className="discord-msg-author" style={{ color: '#38bdf8' }}>Chopsticks<span style={{ fontSize: '0.65rem', background: '#5865f2', color: '#fff', borderRadius: '0.2rem', padding: '0.05rem 0.3rem', marginLeft: '0.35rem', fontWeight: 700 }}>APP</span></div>
-                        <div className="discord-embed" style={{ borderLeftColor: '#4ade80' }}>
-                          <div className="discord-embed-title">Maya's Balance</div>
-                          <div className="discord-embed-row">
-                            <div className="discord-embed-field"><span className="discord-embed-field-name">Wallet</span><span className="discord-embed-field-val">4,250 cr</span></div>
-                            <div className="discord-embed-field"><span className="discord-embed-field-name">Bank</span><span className="discord-embed-field-val">12,800 cr</span></div>
-                            <div className="discord-embed-field"><span className="discord-embed-field-name">Rank</span><span className="discord-embed-field-val">#3</span></div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="discord-msg">
-                      <div className="discord-avatar" style={{ background: 'linear-gradient(135deg,#38bdf8,#0284c7)', color: '#000', opacity: 0.7, fontSize: '0.65rem', fontWeight: 800 }}>CH</div>
-                      <div className="discord-msg-body" style={{ paddingTop: '0.5rem' }}>
-                        <div className="typing-dots"><span /><span /><span /></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div style={{ position: 'absolute', top: -10, right: -10, background: 'var(--green)', color: '#000', fontSize: '0.62rem', fontWeight: 700, padding: '0.25rem 0.65rem', borderRadius: '999px', fontFamily: 'var(--font-heading)', letterSpacing: '0.06em', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#000', opacity: 0.5 }} />
-                ONLINE
-              </div>
+            <h1 style={{ fontFamily: 'var(--font-heading)', fontWeight: 800, fontSize: 'clamp(2.75rem, 6vw, 4.5rem)', lineHeight: 1.0, letterSpacing: '-0.05em', color: 'var(--text)', marginBottom: '1.5rem' }}>
+              One bot.<br />
+              <span className="gradient-text">Infinite possibilities.</span>
+            </h1>
+            <p style={{ fontSize: '1.05rem', color: 'var(--text-muted)', lineHeight: 1.8, maxWidth: 480, marginBottom: '2rem' }}>
+              Chopsticks is a fully-loaded Discord bot with 162 prefix commands across 17 categories — music, moderation, economy, AI, leveling, and automation — all backed by a self-healing Agent Pool that keeps your server running 24/7.
+            </p>
+            <div style={{ display: 'flex', gap: '0.875rem', flexWrap: 'wrap', marginBottom: '2.5rem' }}>
+              <a href={BOT_INVITE} target="_blank" rel="noopener noreferrer" className="btn btn-primary" style={{ padding: '0.8rem 2rem', fontSize: '0.9rem' }}>
+                Add to Discord
+              </a>
+              <a href="/commands" className="btn btn-secondary" style={{ padding: '0.8rem 2rem', fontSize: '0.9rem' }}>
+                View Commands
+              </a>
             </div>
+            {/* Stat pills */}
+            <div style={{ display: 'flex', gap: '1.25rem', flexWrap: 'wrap' }}>
+              {[['162', 'Prefix commands'], ['49', 'Voice sessions'], ['6', 'Agent roles'], ['17', 'Categories']].map(([n, l]) => (
+                <div key={l} style={{ textAlign: 'center' }}>
+                  <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 800, fontSize: '1.6rem', color: 'var(--text)', letterSpacing: '-0.05em' }}>{n}</div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.07em', fontFamily: 'var(--font-heading)', fontWeight: 600 }}>{l}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Right: Discord mockup */}
+          <div style={{ display: 'flex', justifyContent: 'center' }}>
+            <DiscordMockup />
           </div>
         </div>
       </section>
 
-      {/* ── Agent Pool ────────────────────────────── */}
-      <section style={{ padding: '5rem 0', borderTop: '1px solid var(--border)', background: 'var(--surface)', overflow: 'hidden', position: 'relative' }}>
-        <div className="orb orb-violet" style={{ width: 500, height: 500, top: -150, right: -150, opacity: 0.3, position: 'absolute' }} />
-        <div className="container" style={{ position: 'relative', zIndex: 1 }}>
-          <div className="agent-pool-grid">
-            {/* Left */}
-            <div>
-              <div className="badge" style={{ marginBottom: '1.25rem', borderColor: 'rgba(167,139,250,0.3)', background: 'rgba(167,139,250,0.08)', color: '#a78bfa' }}>
-                <RadioIcon size={12} />
-                Flagship Feature
+      {/* ── How It Works ─────────────────────────────── */}
+      <section style={{ padding: '5rem 0', borderBottom: '1px solid var(--border)' }}>
+        <div className="container">
+          <div style={{ textAlign: 'center', marginBottom: '3.5rem' }}>
+            <div className="badge" style={{ marginBottom: '1rem' }}>Getting started</div>
+            <h2 style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 'clamp(1.75rem, 4vw, 2.5rem)', color: 'var(--text)', letterSpacing: '-0.04em', marginBottom: '0.75rem' }}>Up in three steps</h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', maxWidth: 450, margin: '0 auto' }}>No complicated setup. No config files. Just invite, tweak settings, and go.</p>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.5rem', position: 'relative' }}>
+            {/* connector line */}
+            <div style={{ position: 'absolute', top: 28, left: '16.67%', right: '16.67%', height: 1, background: 'linear-gradient(90deg, transparent, var(--accent-border), var(--accent-border), transparent)', pointerEvents: 'none' }} />
+            {HOW_STEPS.map(s => (
+              <div key={s.n} className="glass-card" style={{ padding: '2rem', textAlign: 'center', position: 'relative' }}>
+                <div style={{ width: 52, height: 52, borderRadius: '50%', border: '2px solid var(--accent-border)', background: 'var(--surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.25rem', position: 'relative', zIndex: 1 }}>
+                  <span style={{ fontFamily: 'var(--font-heading)', fontWeight: 800, fontSize: '0.85rem', color: 'var(--accent)' }}>{s.n}</span>
+                </div>
+                <h3 style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: '1.05rem', color: 'var(--text)', marginBottom: '0.5rem' }}>{s.title}</h3>
+                <p style={{ fontSize: '0.83rem', color: 'var(--text-muted)', lineHeight: 1.7 }}>{s.body}</p>
               </div>
-              <h2 style={{ fontSize: 'clamp(1.75rem, 4vw, 2.75rem)', fontWeight: 700, letterSpacing: '-0.04em', color: 'var(--text)', fontFamily: 'var(--font-heading)', lineHeight: 1.1, marginBottom: '1rem' }}>
-                The <span className="gradient-text">Agent Pool.</span>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Feature Grid ─────────────────────────────── */}
+      <section style={{ padding: '5rem 0', background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
+        <div className="container">
+          <div style={{ textAlign: 'center', marginBottom: '3.5rem' }}>
+            <div className="badge" style={{ marginBottom: '1rem' }}>Modules</div>
+            <h2 style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 'clamp(1.75rem, 4vw, 2.5rem)', color: 'var(--text)', letterSpacing: '-0.04em', marginBottom: '0.75rem' }}>Everything your server needs</h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', maxWidth: 500, margin: '0 auto' }}>Seventeen fully-featured categories. Enable them independently — pay no performance cost for unused features.</p>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1rem' }}>
+            {FEATURES.map(f => <FeatureCard key={f.cat} f={f} />)}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Agent Pool Spotlight ──────────────────────── */}
+      <section style={{ padding: '5rem 0', borderBottom: '1px solid var(--border)', position: 'relative', overflow: 'hidden' }}>
+        <div className="orb orb-blue" style={{ width: 600, height: 600, top: '50%', right: -200, transform: 'translateY(-50%)', opacity: 0.2, pointerEvents: 'none' }} />
+        <div className="container" style={{ position: 'relative', zIndex: 1 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4rem', alignItems: 'start' }}>
+            <div>
+              <div className="badge" style={{ marginBottom: '1.25rem' }}>Agent Pool</div>
+              <h2 style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 'clamp(1.75rem, 4vw, 2.5rem)', color: 'var(--text)', letterSpacing: '-0.04em', lineHeight: 1.1, marginBottom: '1.25rem' }}>
+                Specialised agents.<br/>
+                <span className="gradient-text">Always online.</span>
               </h2>
-              <p style={{ fontSize: '1rem', color: 'var(--text-muted)', lineHeight: 1.75, marginBottom: '2rem', maxWidth: '480px' }}>
-                A community-powered system where bot tokens are pooled and dispatched to voice channels on demand. Create your own pool, bring your own API keys, and link them to your agents — or tap into what's already there. Your agents, your configuration.
+              <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', lineHeight: 1.8, marginBottom: '1.5rem' }}>
+                Chopsticks runs six dedicated agent processes — each responsible for a domain. If one crashes, the Overseer restarts it in under two seconds. Your music never stops. Your bans always land.
               </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '2rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
                 {[
-                  { Icon: ZapIcon, title: 'Near-human actors', desc: 'Give an agent a name, persona, and tone. Configure how it talks, what it responds to, and how it behaves — members may forget it\'s a bot.' },
-                  { Icon: RadioIcon, title: 'Any role, any channel', desc: 'DJ in voice. Support agent in #help. Onboarding guide in #welcome. Trivia opponent in #games. Permanently bound or session-based — your call.' },
-                  { Icon: CoinIcon, title: 'Credit economy', desc: 'Spend server credits to deploy agents, trigger sounds, interrupt conversations, or run sessions. Earn credits through normal server activity.' },
-                  { Icon: UsersIcon, title: 'Cross-server competitions', desc: 'Register your agent for the public pool. Compete against other servers in trivia arenas and cross-pool leaderboards.' },
-                ].map(({ Icon, title, desc }) => (
-                  <div key={title} style={{ display: 'flex', gap: '0.875rem', alignItems: 'flex-start' }}>
-                    <div style={{ width: 32, height: 32, borderRadius: '0.4rem', background: 'rgba(167,139,250,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#a78bfa', flexShrink: 0 }}>
-                      <Icon size={15} />
-                    </div>
+                  ['Self-healing', 'Agents restart automatically on failure, no human needed.'],
+                  ['Zero-downtime deploys', 'Rolling restarts mean updates never kill an active voice session.'],
+                  ['Per-guild isolation', 'Each guild state is scoped — one server\'s meltdown can\'t affect yours.'],
+                ].map(([t, d]) => (
+                  <div key={t} style={{ display: 'flex', gap: '0.625rem', alignItems: 'flex-start' }}>
+                    <span style={{ color: 'var(--success)', flexShrink: 0, marginTop: '0.1rem', fontSize: '1.1rem' }}>✓</span>
                     <div>
-                      <p style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text)', fontFamily: 'var(--font-heading)', marginBottom: '0.15rem' }}>{title}</p>
-                      <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>{desc}</p>
+                      <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text)', fontFamily: 'var(--font-heading)' }}>{t}</span>
+                      <span style={{ fontSize: '0.83rem', color: 'var(--text-muted)', marginLeft: '0.375rem' }}>{d}</span>
                     </div>
                   </div>
                 ))}
               </div>
-              <a href="/docs#agent-pool" className="btn btn-ghost" style={{ fontSize: '0.82rem', padding: '0.65rem 1.25rem' }}>
-                How it works <ArrowRightIcon size={14} />
-              </a>
-            </div>
-
-            {/* Right — diagram */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
-              <div style={{ background: 'rgba(167,139,250,0.06)', border: '1px solid rgba(167,139,250,0.18)', borderRadius: '0.75rem', padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.25rem' }}>
-                <RadioIcon size={14} style={{ color: '#a78bfa' } as React.CSSProperties} />
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.72rem', color: '#a78bfa', fontWeight: 600 }}>AGENT POOL</span>
-                <span style={{ marginLeft: 'auto', fontSize: '0.68rem', color: 'var(--text-faint)', fontFamily: 'var(--font-mono)' }}>community-maintained</span>
+              <div style={{ marginTop: '2rem' }}>
+                <a href="/features" className="btn btn-secondary" style={{ padding: '0.7rem 1.75rem' }}>Learn about Agent Pool</a>
               </div>
-              {/* Pool diagram steps */}
-              {[
-                { step: '01', label: 'User runs /agent join', sub: 'in any server with credits', color: 'var(--accent)' },
-                { step: '02', label: 'Pool finds an available bot', sub: 'encrypted token, dispatched securely', color: '#a78bfa' },
-                { step: '03', label: 'Bot joins the voice channel', sub: 'ready for music, AI, trivia, or greetings', color: 'var(--green)' },
-                { step: '04', label: 'Credits deducted, session runs', sub: 'admin configures actions and costs via /setup', color: '#f472b6' },
-                { step: '05', label: 'Bring your own keys → /agentkeys link', sub: 'OpenAI, Groq, Anthropic, ElevenLabs — your key, your quota', color: '#facc15' },
-              ].map(item => (
-                <div key={item.step} style={{
-                  background: 'var(--bg)', border: '1px solid var(--border)',
-                  borderRadius: '0.625rem', padding: '0.875rem 1rem',
-                  display: 'flex', alignItems: 'center', gap: '1rem',
-                }}>
-                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', color: item.color, fontWeight: 700, opacity: 0.7, flexShrink: 0, minWidth: '1.5rem' }}>{item.step}</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text)', fontFamily: 'var(--font-heading)', marginBottom: '0.1rem' }}>{item.label}</p>
-                    <p style={{ fontSize: '0.72rem', color: 'var(--text-faint)' }}>{item.sub}</p>
-                  </div>
-                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: item.color, flexShrink: 0, opacity: 0.7 }} />
+            </div>
+            {/* Agent role card grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+              {AGENT_ROLES.map(a => (
+                <div key={a.id} className="glass-card" style={{ padding: '1.25rem', transition: 'transform 0.2s, box-shadow 0.2s', cursor: 'default' }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-3px)'; (e.currentTarget as HTMLDivElement).style.boxShadow = `0 12px 32px rgba(${hexToRgb(a.color)},0.12)`; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)'; (e.currentTarget as HTMLDivElement).style.boxShadow = ''; }}
+                >
+                  <div style={{ fontSize: '1.5rem', marginBottom: '0.625rem' }}>{a.icon}</div>
+                  <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: '0.875rem', color: a.color, marginBottom: '0.25rem' }}>{a.label}</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-faint)', lineHeight: 1.6 }}>{a.desc}</div>
                 </div>
               ))}
             </div>
@@ -237,215 +317,53 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ── Three Paths ───────────────────────────── */}
-      <section style={{ padding: '5rem 0', borderTop: '1px solid var(--border)' }}>
+      {/* ── Community strip ───────────────────────────── */}
+      <section style={{ padding: '5rem 0', background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
         <div className="container">
-          <div style={{ marginBottom: '2.5rem' }}>
-            <p style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-faint)', fontFamily: 'var(--font-heading)', marginBottom: '0.75rem' }}>Your call</p>
-            <h2 style={{ fontSize: 'clamp(1.75rem, 4vw, 2.75rem)', fontWeight: 700, letterSpacing: '-0.04em', color: 'var(--text)', fontFamily: 'var(--font-heading)', lineHeight: 1.1 }}>
-              Three ways to use it.
-            </h2>
+          <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
+            <div className="badge" style={{ marginBottom: '1rem' }}>Community</div>
+            <h2 style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 'clamp(1.75rem, 4vw, 2.5rem)', color: 'var(--text)', letterSpacing: '-0.04em', marginBottom: '0.75rem' }}>Join the community</h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem' }}>Open-source, community-driven, and actively developed.</p>
           </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(290px, 1fr))', gap: '1rem' }}>
-            {/* Hosted */}
-            <div className="three-path-card" style={{ '--path-color': 'var(--accent)' } as React.CSSProperties}>
-              <div className="path-icon" style={{ '--path-color': 'var(--accent)' } as React.CSSProperties}>
-                <DiscordIcon size={20} />
-              </div>
-              <div style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--accent)', fontFamily: 'var(--font-heading)', marginBottom: '0.4rem' }}>Hosted · Zero setup</div>
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 700, letterSpacing: '-0.03em', color: 'var(--text)', fontFamily: 'var(--font-heading)', marginBottom: '0.75rem', lineHeight: 1.25 }}>Add it. It works.</h3>
-              <p style={{ fontSize: '0.83rem', color: 'var(--text-muted)', lineHeight: 1.7, marginBottom: '1.5rem', flex: 1 }}>
-                The hosted instance is run by goot27 and always online. Invite Chopsticks, get 100+ commands instantly. No accounts, no config, no infrastructure.
-              </p>
-              <a href={BOT_INVITE} target="_blank" rel="noopener noreferrer" className="btn btn-primary" style={{ fontSize: '0.82rem', padding: '0.65rem 1.25rem', width: '100%', justifyContent: 'center' }}>
-                <DiscordIcon size={14} />
-                Add to Discord
-              </a>
-            </div>
-
-            {/* Theme */}
-            <div className="three-path-card" style={{ '--path-color': '#a78bfa' } as React.CSSProperties}>
-              <div className="path-icon" style={{ '--path-color': '#a78bfa' } as React.CSSProperties}>
-                <PaletteIcon size={20} />
-              </div>
-              <div style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#a78bfa', fontFamily: 'var(--font-heading)', marginBottom: '0.4rem' }}>In-server · No code</div>
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 700, letterSpacing: '-0.03em', color: 'var(--text)', fontFamily: 'var(--font-heading)', marginBottom: '0.75rem', lineHeight: 1.25 }}>Customize with /theme.</h3>
-              <p style={{ fontSize: '0.83rem', color: 'var(--text-muted)', lineHeight: 1.7, marginBottom: '1.5rem', flex: 1 }}>
-                Change embed colors, rename the bot's persona, disable modules you don't need — all from inside Discord. Link your own OpenAI, Groq, or ElevenLabs keys via <code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem', color: '#a78bfa', background: 'rgba(167,139,250,0.1)', padding: '0.05rem 0.3rem', borderRadius: '0.25rem' }}>/agentkeys</code> for richer, quota-free customization.
-              </p>
-              <a href="/docs#per-server" className="btn btn-ghost" style={{ fontSize: '0.82rem', padding: '0.65rem 1.25rem', width: '100%', justifyContent: 'center' }}>
-                View /theme docs <ArrowRightIcon size={13} />
-              </a>
-            </div>
-
-            {/* Self-host */}
-            <div className="three-path-card" style={{ '--path-color': 'var(--green)' } as React.CSSProperties}>
-              <div className="path-icon" style={{ '--path-color': 'var(--green)' } as React.CSSProperties}>
-                <ServerIcon size={20} />
-              </div>
-              <div style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--green)', fontFamily: 'var(--font-heading)', marginBottom: '0.4rem' }}>Self-host · Full control</div>
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 700, letterSpacing: '-0.03em', color: 'var(--text)', fontFamily: 'var(--font-heading)', marginBottom: '0.75rem', lineHeight: 1.25 }}>Run your own instance.</h3>
-              <p style={{ fontSize: '0.83rem', color: 'var(--text-muted)', lineHeight: 1.7, marginBottom: '1.5rem', flex: 1 }}>
-                Full Docker stack — PostgreSQL, Redis, Lavalink. Your infra, your uptime, your rules. Need help getting started? We've got you.
-              </p>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <a href="/self-host" className="btn btn-green" style={{ fontSize: '0.82rem', padding: '0.65rem 1.25rem', flex: 1, justifyContent: 'center' }}>
-                  <DockerIcon size={14} />
-                  Self-host guide
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
+            {[
+              { icon: '⭐', title: 'Star on GitHub', body: 'Help us grow by starring the repo. See the source code, open issues, and contribute.', href: GITHUB_REPO, cta: 'View on GitHub', color: '#facc15' },
+              { icon: '💬', title: 'Join the Discord', body: 'Get support, report bugs, suggest features, and hang out with the Chopsticks community.', href: DISCORD_SERVER, cta: 'Join Server', color: '#7289da' },
+              { icon: '🛠️', title: 'Self-host it', body: 'Run your own instance. Full Docker support, Lavalink included, and a step-by-step guide.', href: '/self-host', cta: 'Self-host guide', color: '#4ade80' },
+            ].map(c => (
+              <div key={c.title} className="glass-card" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <div style={{ fontSize: '2rem' }}>{c.icon}</div>
+                <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: '1.05rem', color: 'var(--text)' }}>{c.title}</div>
+                <div style={{ fontSize: '0.83rem', color: 'var(--text-muted)', lineHeight: 1.7, flex: 1 }}>{c.body}</div>
+                <a href={c.href} target={c.href.startsWith('http') ? '_blank' : undefined} rel="noopener noreferrer" style={{ fontSize: '0.82rem', fontWeight: 700, color: c.color, fontFamily: 'var(--font-heading)', display: 'flex', alignItems: 'center', gap: '0.25rem', textDecoration: 'none' }}>
+                  {c.cta} →
                 </a>
               </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ── Categories ────────────────────────────── */}
-      <section style={{ padding: '5rem 0', borderTop: '1px solid var(--border)', background: 'var(--surface)' }}>
-        <div className="container">
-          <div style={{ marginBottom: '2.5rem' }}>
-            <p style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-faint)', fontFamily: 'var(--font-heading)', marginBottom: '0.75rem' }}>Everything included</p>
-            <h2 style={{ fontSize: 'clamp(1.75rem, 4vw, 2.75rem)', fontWeight: 700, letterSpacing: '-0.04em', color: 'var(--text)', fontFamily: 'var(--font-heading)', lineHeight: 1.1 }}>
-              One bot.<br />Seven categories.
-            </h2>
-          </div>
-          <div className="bento" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
-            {CATEGORIES.map((cat, i) => (
-              <div key={cat.name} className={`bento-card ${cat.cls} ${i < 3 ? 'bento-lg' : ''}`} style={i < 3 ? { gridColumn: 'span 1' } : {}}>
-                <span className="bento-count">{cat.count} cmds</span>
-                <div className="bento-icon">
-                  <cat.Icon size={22} />
-                </div>
-                <div className="bento-title">{cat.name}</div>
-                <div className="bento-desc">{cat.desc}</div>
-              </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ── Command examples ──────────────────────── */}
-      <section style={{ padding: '5rem 0', borderTop: '1px solid var(--border)' }}>
-        <div className="container">
-          <div style={{ marginBottom: '2.5rem' }}>
-            <p style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-faint)', fontFamily: 'var(--font-heading)', marginBottom: '0.75rem' }}>Real commands</p>
-            <h2 style={{ fontSize: 'clamp(1.75rem, 4vw, 2.75rem)', fontWeight: 700, letterSpacing: '-0.04em', color: 'var(--text)', fontFamily: 'var(--font-heading)' }}>
-              See it in action.
-            </h2>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1rem' }}>
-            {[
-              { cmd: '/ban', arg: '@user Spamming', color: '#fb923c', title: 'Moderation that holds up.', desc: 'One command. Banned, logged, case recorded. Hierarchy-safe — can never act above your own rank.', output: 'Banned @spammer123. Reason: Spamming. Case #47 logged.' },
-              { cmd: '/trivia', arg: 'category: Science', color: '#a78bfa', title: 'Keeps your server active.', desc: 'PvP trivia, fleet battles, riddles, battles. Always something happening.', output: 'Science: What is the chemical symbol for Gold? (30s to answer)' },
-              { cmd: '/autorole', arg: 'add @Member', color: '#facc15', title: 'Automation that runs itself.', desc: 'New member joins, gets @Member automatically. Configure once, runs forever.', output: 'Auto-role set. New members will receive @Member on join.' },
-            ].map(item => (
-              <div key={item.cmd} className="cmd-card">
-                <div style={{ background: '#0d0d0d', borderBottom: '1px solid var(--border)', padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.82rem', color: item.color, fontWeight: 600 }}>{item.cmd}</span>
-                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.82rem', color: 'var(--text-faint)' }}>{item.arg}</span>
-                </div>
-                <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid var(--border)', background: '#080808' }}>
-                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
-                    <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'linear-gradient(135deg,#38bdf8,#0284c7)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 800, color: '#000', flexShrink: 0 }}>CH</div>
-                    <div style={{ fontSize: '0.78rem', color: '#b5bac1', lineHeight: 1.5, fontFamily: 'var(--font-body)' }}>{item.output}</div>
-                  </div>
-                </div>
-                <div style={{ padding: '1.25rem 1rem' }}>
-                  <p style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text)', marginBottom: '0.4rem', fontFamily: 'var(--font-heading)' }}>{item.title}</p>
-                  <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>{item.desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div style={{ textAlign: 'center', marginTop: '2.5rem' }}>
-            <a href="/commands" className="btn btn-ghost" style={{ padding: '0.75rem 1.75rem' }}>
-              Browse all 100+ commands <ArrowRightIcon size={14} />
-            </a>
-          </div>
-        </div>
-      </section>
-
-      {/* ── Community ─────────────────────────────── */}
-      <section style={{ padding: '5rem 0', borderTop: '1px solid var(--border)', background: 'var(--surface)' }}>
-        <div className="container">
-          <div style={{ marginBottom: '2.5rem' }}>
-            <p style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-faint)', fontFamily: 'var(--font-heading)', marginBottom: '0.75rem' }}>Open source</p>
-            <h2 style={{ fontSize: 'clamp(1.75rem, 4vw, 2.75rem)', fontWeight: 700, letterSpacing: '-0.04em', color: 'var(--text)', fontFamily: 'var(--font-heading)', lineHeight: 1.1 }}>
-              Built by the community,<br />for the community.
-            </h2>
-            <p style={{ fontSize: '1rem', color: 'var(--text-muted)', lineHeight: 1.75, maxWidth: '520px', marginTop: '1rem' }}>
-              Chopsticks is open source and community-driven. Every feature, bug fix, and improvement comes from people like you. Star the repo, open an issue, or submit a PR.
-            </p>
-          </div>
-
-          {/* Star strip */}
-          <div className="star-strip" style={{ marginBottom: '1.5rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
-              <GitHubIcon size={18} style={{ color: 'var(--text-muted)' } as React.CSSProperties} />
-              <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text)', fontFamily: 'var(--font-heading)' }}>WokSpec / Chopsticks</span>
-            </div>
-            <span style={{ color: 'var(--border-strong)', fontSize: '0.8rem' }}>·</span>
-            <span style={{ fontSize: '0.82rem', color: 'var(--text-faint)' }}>If Chopsticks has been useful to you, a star goes a long way.</span>
-            <div style={{ marginLeft: 'auto' }}>
-              <a href={GITHUB} target="_blank" rel="noopener noreferrer" className="btn btn-ghost" style={{ fontSize: '0.8rem', padding: '0.5rem 1rem', gap: '0.4rem' }}>
-                <StarIcon size={13} />
-                Star on GitHub
-              </a>
-            </div>
-          </div>
-
-          <div className="community-grid">
-            {[
-              { href: GITHUB + '/issues', Icon: GitPullRequestIcon, label: 'Open an issue', desc: 'Found a bug or have a feature idea? Open an issue and let the community know.' },
-              { href: GITHUB + '/pulls', Icon: GitHubIcon, label: 'Submit a PR', desc: 'Contributions of all sizes are welcome. Check CONTRIBUTING.md first.' },
-              { href: '/tutorials', Icon: BookOpenIcon, label: 'Read the tutorials', desc: 'New here? The tutorials page covers everything from setup to self-hosting.' },
-              { href: GITHUB + '/discussions', Icon: PaletteIcon, label: 'Contribute game art', desc: 'We need artists. Help design sprites, icons, and UI assets for /game, /work, and economy rewards. Open a discussion to get started.' },
-            ].map(item => (
-              <a key={item.label} href={item.href} target={item.href.startsWith('http') ? '_blank' : undefined} rel={item.href.startsWith('http') ? 'noopener noreferrer' : undefined} className="community-card">
-                <div className="community-card-icon">
-                  <item.Icon size={18} />
-                </div>
-                <p style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text)', fontFamily: 'var(--font-heading)' }}>{item.label}</p>
-                <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.65 }}>{item.desc}</p>
-                <div style={{ marginTop: 'auto', paddingTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.78rem', color: 'var(--accent)' }}>
-                  <span>Go</span><ArrowRightIcon size={12} />
-                </div>
-              </a>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── Final CTA ─────────────────────────────── */}
-      <section style={{ padding: '6rem 0', background: 'radial-gradient(ellipse 80% 60% at 50% 100%, rgba(56,189,248,0.08) 0%, rgba(139,92,246,0.05) 50%, transparent 100%), var(--bg)', borderTop: '1px solid rgba(56,189,248,0.1)' }}>
-        <div className="container" style={{ textAlign: 'center' }}>
-          <div className="badge" style={{ marginBottom: '1.5rem', marginLeft: 'auto', marginRight: 'auto', width: 'fit-content' }}>
-            <span className="dot-live" />
-            Open source
-          </div>
-          <h2 style={{ fontSize: 'clamp(2rem, 5vw, 3.5rem)', fontWeight: 700, letterSpacing: '-0.045em', color: 'var(--text)', marginBottom: '1rem', fontFamily: 'var(--font-heading)', lineHeight: 1.05 }}>
-            Use it. Fork it.<br /><span className="gradient-text">Ship it.</span>
+      {/* ── Footer CTA ───────────────────────────────── */}
+      <section style={{ padding: '6rem 0', position: 'relative', overflow: 'hidden' }} className="bg-grid">
+        <div className="orb orb-blue"   style={{ width: 600, height: 600, top: '50%', left: '50%', transform: 'translate(-50%,-50%)', opacity: 0.2 }} />
+        <div className="container" style={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
+          <h2 style={{ fontFamily: 'var(--font-heading)', fontWeight: 800, fontSize: 'clamp(2rem, 5vw, 3.5rem)', color: 'var(--text)', letterSpacing: '-0.05em', marginBottom: '1rem', lineHeight: 1.0 }}>
+            Ready to power up<br /><span className="gradient-text">your server?</span>
           </h2>
-          <p style={{ fontSize: '1rem', color: 'var(--text-muted)', marginBottom: '2.25rem', maxWidth: '380px', margin: '0 auto 2.25rem' }}>
-            Use the instance hosted by goot27, or run your own. MIT licensed. 100+ commands, open to contributions.
+          <p style={{ color: 'var(--text-muted)', marginBottom: '2.5rem', fontSize: '1rem', maxWidth: 450, margin: '0 auto 2.5rem' }}>
+            Add Chopsticks in 30 seconds. No credit card. No setup fee. Full-featured from day one.
           </p>
-          <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-            <a href={BOT_INVITE} target="_blank" rel="noopener noreferrer" className="btn btn-primary" style={{ padding: '0.95rem 2.25rem', fontSize: '0.95rem' }}>
-              <DiscordIcon size={16} />
-              Add Chopsticks to Discord
+          <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+            <a href={BOT_INVITE} target="_blank" rel="noopener noreferrer" className="btn btn-primary" style={{ padding: '0.9rem 2.5rem', fontSize: '1rem' }}>
+              Add to Discord — It's Free
             </a>
-            <a href={GITHUB} target="_blank" rel="noopener noreferrer" className="btn btn-ghost" style={{ padding: '0.95rem 1.75rem', fontSize: '0.95rem' }}>
-              <GitHubIcon size={15} />
-              View source
-            </a>
-            <a href="/self-host" className="btn btn-ghost" style={{ padding: '0.95rem 1.75rem', fontSize: '0.95rem' }}>
-              Self-host <ArrowRightIcon size={14} />
+            <a href="/docs" className="btn btn-secondary" style={{ padding: '0.9rem 2.5rem', fontSize: '1rem' }}>
+              Read the Docs
             </a>
           </div>
         </div>
       </section>
-    </>
+    </main>
   );
 }

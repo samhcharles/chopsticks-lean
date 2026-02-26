@@ -1,41 +1,50 @@
-import type { Metadata } from 'next';
-import React from 'react';
+'use client';
+import React, { useState, useEffect, useRef } from 'react';
 
-export const metadata: Metadata = {
-  title: 'Docs',
-  description: 'Complete documentation for Chopsticks — quickstart, self-hosting, Docker setup, branding/reskin guide, Agent Pool, and more.',
-  alternates: { canonical: 'https://chopsticks.wokspec.org/docs' },
-};
+const GITHUB = 'https://github.com/WokSpec/Chopsticks';
 
-const CODE_BLOCK_STYLE: React.CSSProperties = {
-  background: '#111', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '0.5rem',
-  padding: '1rem 1.25rem', fontFamily: 'var(--font-mono)', fontSize: '0.82rem',
-  color: '#e2e8f0', lineHeight: 1.75, overflowX: 'auto', whiteSpace: 'pre',
-  marginTop: '0.75rem', marginBottom: '0.75rem',
-};
-
-const SECTION_STYLE: React.CSSProperties = {
-  borderBottom: '1px solid var(--border)', paddingBottom: '2.5rem', marginBottom: '2.5rem',
-};
-
-const H2_STYLE: React.CSSProperties = {
-  fontSize: '1.25rem', fontWeight: 700, color: 'var(--text)', marginBottom: '0.875rem',
-  fontFamily: 'var(--font-heading)', letterSpacing: '-0.02em',
-};
-
-const P_STYLE: React.CSSProperties = {
-  fontSize: '0.9rem', color: 'var(--text-muted)', lineHeight: 1.75, marginBottom: '0.75rem',
-};
-
-function InlineCode({ children }: { children: React.ReactNode }) {
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    await navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
   return (
-    <code style={{
-      fontFamily: 'var(--font-mono)', fontSize: '0.82em',
-      background: 'rgba(255,255,255,0.07)', padding: '0.1em 0.4em',
-      borderRadius: '0.25rem', color: 'var(--accent)',
-    }}>{children}</code>
+    <button className={`copy-btn${copied ? ' copied' : ''}`} onClick={copy} aria-label="Copy code">
+      {copied ? '✓ Copied' : 'Copy'}
+    </button>
   );
 }
+
+function CodeBlock({ children }: { children: string }) {
+  return (
+    <div className="code-block-wrapper" style={{ marginTop: '0.75rem', marginBottom: '0.75rem' }}>
+      <pre className="docs-code">{children}</pre>
+      <CopyButton text={children.trim()} />
+    </div>
+  );
+}
+
+function Ic({ children }: { children: React.ReactNode }) {
+  return <code style={{ fontFamily: 'var(--font-mono)', fontSize: '0.82em', background: 'rgba(255,255,255,0.07)', padding: '0.1em 0.4em', borderRadius: '0.25rem', color: 'var(--accent)' }}>{children}</code>;
+}
+
+type NavItem = { id: string; label: string };
+const NAV_ITEMS: NavItem[] = [
+  { id: 'overview',      label: 'Overview' },
+  { id: 'hosted',        label: 'Hosted quickstart' },
+  { id: 'self-host',     label: 'Self-hosting' },
+  { id: 'reskin',        label: 'Reskinning' },
+  { id: 'per-server',    label: 'Per-server themes' },
+  { id: 'feature-flags', label: 'Feature flags' },
+  { id: 'agent-pool',    label: 'Agent Pool' },
+  { id: 'contributing',  label: 'Contributing' },
+];
+
+const SECTION: React.CSSProperties = { borderBottom: '1px solid var(--border)', paddingBottom: '2.5rem', marginBottom: '2.5rem', scrollMarginTop: '5rem' };
+const H2: React.CSSProperties = { fontSize: '1.35rem', fontWeight: 700, color: 'var(--text)', marginBottom: '0.875rem', fontFamily: 'var(--font-heading)', letterSpacing: '-0.02em' };
+const P: React.CSSProperties = { fontSize: '0.9rem', color: 'var(--text-muted)', lineHeight: 1.75, marginBottom: '0.75rem' };
 
 function TableRow({ cells, head }: { cells: string[]; head?: boolean }) {
   const Tag = head ? 'th' : 'td';
@@ -56,6 +65,21 @@ function TableRow({ cells, head }: { cells: string[]; head?: boolean }) {
 }
 
 export default function DocsPage() {
+  const [activeSection, setActiveSection] = useState('overview');
+  const observerRef = useRef<IntersectionObserver | null>(null);
+
+  useEffect(() => {
+    const sectionEls = NAV_ITEMS.map(n => document.getElementById(n.id)).filter(Boolean) as HTMLElement[];
+    observerRef.current = new IntersectionObserver(
+      entries => {
+        entries.forEach(e => { if (e.isIntersecting) setActiveSection(e.target.id); });
+      },
+      { rootMargin: '-40% 0px -55% 0px' }
+    );
+    sectionEls.forEach(el => observerRef.current!.observe(el));
+    return () => observerRef.current?.disconnect();
+  }, []);
+
   return (
     <div>
       {/* Hero */}
@@ -71,217 +95,149 @@ export default function DocsPage() {
         </div>
       </section>
 
-      <div className="container docs-grid" style={{ padding: '3.5rem 1.5rem', display: 'grid', gridTemplateColumns: '200px 1fr', gap: '3rem', maxWidth: '1000px', alignItems: 'start' }}>
+      {/* Content */}
+      <div className="container" style={{ padding: '3.5rem 1.5rem', display: 'grid', gridTemplateColumns: '200px 1fr', gap: '3rem', maxWidth: '1000px', alignItems: 'start' }}>
 
-        {/* Sidebar nav */}
-        <nav style={{ position: 'sticky', top: 72, display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
-          {[
-            { id: 'overview',       label: 'Overview' },
-            { id: 'hosted',         label: 'Hosted quickstart' },
-            { id: 'self-host',      label: 'Self-hosting' },
-            { id: 'reskin',         label: 'Reskinning' },
-            { id: 'per-server',     label: 'Per-server themes' },
-            { id: 'feature-flags',  label: 'Feature flags' },
-            { id: 'agent-pool',     label: 'Agent Pool' },
-            { id: 'contributing',   label: 'Contributing' },
-          ].map(item => (
-            <a key={item.id} href={`#${item.id}`} className="docs-nav-link">
+        {/* Sticky scrollspy sidebar */}
+        <nav style={{ position: 'sticky', top: 72, display: 'flex', flexDirection: 'column', gap: 0, background: 'var(--surface-raised)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '0.625rem', overflow: 'hidden' }}>
+          {NAV_ITEMS.map(item => (
+            <a
+              key={item.id}
+              href={`#${item.id}`}
+              className={`scrollspy-link${activeSection === item.id ? ' active' : ''}`}
+            >
               {item.label}
             </a>
           ))}
         </nav>
 
-        {/* Content */}
+        {/* Content body */}
         <div>
 
-          {/* Overview */}
-          <section id="overview" style={SECTION_STYLE}>
-            <h2 style={H2_STYLE}>Overview</h2>
-            <p style={P_STYLE}>
-              Chopsticks is a full-featured Discord bot built by{' '}
-              <a href="https://github.com/goot27" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)', textDecoration: 'none' }}>goot27</a> and{' '}
-              <a href="https://wokspec.org" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)', textDecoration: 'none' }}>Wok Specialists</a>.
-              It ships 60 slash commands across music, moderation, economy, games, AI, and utility — plus the Agent Pool system for community-powered voice deployments.
-            </p>
-            <p style={P_STYLE}>
-              It&apos;s open source (MIT) and built on discord.js v14 with PostgreSQL, Redis, and Lavalink.
-              You can use the hosted instance immediately, fork and reskin it for your brand, or self-host a full Docker stack.
-            </p>
-          </section>
-
-          {/* Hosted quickstart */}
-          <section id="hosted" style={SECTION_STYLE}>
-            <h2 style={H2_STYLE}>Hosted quickstart</h2>
-            <p style={P_STYLE}>
-              The easiest path. The hosted instance is run by goot27 — no accounts, no servers, no config required.
-            </p>
-            <ol style={{ paddingLeft: '1.5rem', ...P_STYLE }}>
-              <li style={{ marginBottom: '0.5rem' }}>Click <strong>Add to Discord</strong> and authorize the bot with your server.</li>
-              <li style={{ marginBottom: '0.5rem' }}>Use <InlineCode>/setup</InlineCode> to configure modules (optional).</li>
-              <li>Start using commands — try <InlineCode>/help</InlineCode> for a full list.</li>
-            </ol>
-            <div style={{ marginTop: '1.25rem' }}>
-              <a
-                href="https://discord.com/api/oauth2/authorize?client_id=1466382874587431036&permissions=1099514858544&scope=bot%20applications.commands"
-                target="_blank" rel="noopener noreferrer"
-                className="btn btn-primary" style={{ fontSize: '0.85rem', padding: '0.65rem 1.5rem' }}
-              >
-                Add Chopsticks to Discord →
-              </a>
+          <section id="overview" style={SECTION}>
+            <h2 style={H2}>Overview</h2>
+            <p style={P}>Chopsticks is a full-featured Discord bot built on discord.js v14 with PostgreSQL persistence, Redis caching, and a Lavalink audio backend. It ships 101 slash commands across music, moderation, economy, games, AI, and social features.</p>
+            <p style={P}>The flagship feature is the <strong style={{ color: 'var(--text)' }}>Agent Pool System</strong>: multiple Discord bot tokens are pooled, encrypted, and dispatched to voice channels on demand. Servers consume capacity without managing tokens.</p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.625rem', marginTop: '1.25rem' }}>
+              {[['101', 'Commands'], ['49', 'Voice sessions'], ['MIT', 'License']].map(([v, l]) => (
+                <div key={l} style={{ background: 'var(--surface-raised)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1rem', textAlign: 'center' }}>
+                  <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: '1.25rem', color: 'var(--accent)', letterSpacing: '-0.03em' }}>{v}</div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-faint)', fontFamily: 'var(--font-heading)', textTransform: 'uppercase', letterSpacing: '0.07em', marginTop: '0.2rem' }}>{l}</div>
+                </div>
+              ))}
             </div>
           </section>
 
-          {/* Self-hosting */}
-          <section id="self-host" style={SECTION_STYLE}>
-            <h2 style={H2_STYLE}>Self-hosting</h2>
-            <p style={P_STYLE}>Run your own Chopsticks instance. Everything is containerized — you need Docker, a Discord bot token, and nothing else to start.</p>
-
-            <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text)', fontFamily: 'var(--font-heading)', marginBottom: '0.5rem', marginTop: '1.25rem' }}>Prerequisites</h3>
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid var(--border)', borderRadius: '0.5rem', overflow: 'hidden' }}>
-                <thead style={{ background: 'var(--surface)' }}>
-                  <TableRow cells={['Requirement', 'Version']} head />
-                </thead>
-                <tbody>
-                  {[
-                    ['Node.js', '20 or 22 LTS'],
-                    ['Docker + Compose', 'v2+'],
-                    ['PostgreSQL', '15+ (or use Docker)'],
-                    ['Redis', '7+ (or use Docker)'],
-                    ['Lavalink', 'Latest (music only)'],
-                  ].map(row => <TableRow key={row[0]} cells={row} />)}
-                </tbody>
-              </table>
+          <section id="hosted" style={SECTION}>
+            <h2 style={H2}>Hosted quickstart</h2>
+            <p style={P}>Add Chopsticks to your server — no hosting or coding required.</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              {[
+                ['1', 'Invite the bot', 'Use the OAuth2 invite link. Chopsticks requests only the permissions it needs.'],
+                ['2', 'Run /setup', 'Initialises the database for your server — economy tables, mod log channel, welcome settings.'],
+                ['3', 'Configure modules', 'Use /setup to configure moderation, economy, and agent-pool settings per your server.'],
+                ['4', 'Test with /ping', 'Confirm the bot is responding. Then /help to see all commands grouped by category.'],
+              ].map(([n, title, desc]) => (
+                <div key={n} style={{ display: 'grid', gridTemplateColumns: '2rem 1fr', gap: '0.875rem', alignItems: 'start' }}>
+                  <div style={{ width: '2rem', height: '2rem', borderRadius: '50%', background: 'var(--accent-dim)', border: '1px solid var(--accent-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: '0.85rem', color: 'var(--accent)', flexShrink: 0 }}>{n}</div>
+                  <div>
+                    <p style={{ fontWeight: 700, color: 'var(--text)', fontFamily: 'var(--font-heading)', fontSize: '0.9rem', marginBottom: '0.25rem' }}>{title}</p>
+                    <p style={{ fontSize: '0.83rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>{desc}</p>
+                  </div>
+                </div>
+              ))}
             </div>
+          </section>
 
-            <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text)', fontFamily: 'var(--font-heading)', marginBottom: '0.5rem', marginTop: '1.5rem' }}>Quick start (Docker)</h3>
-            <div style={CODE_BLOCK_STYLE}>{`git clone https://github.com/WokSpec/Chopsticks.git
+          <section id="self-host" style={SECTION}>
+            <h2 style={H2}>Self-hosting</h2>
+            <p style={P}>Run your own instance with the full Docker stack. PostgreSQL, Redis, and Lavalink are all included.</p>
+            <CodeBlock>{`git clone https://github.com/WokSpec/Chopsticks
 cd Chopsticks
 cp .env.example .env
-# Fill in DISCORD_TOKEN, CLIENT_ID, BOT_OWNER_IDS at minimum
-docker compose -f docker-compose.free.yml up -d`}</div>
-            <p style={{ ...P_STYLE, marginTop: '0.75rem' }}>
-              Use <InlineCode>docker-compose.free.yml</InlineCode> for a minimal free-tier stack.
-              Use <InlineCode>docker-compose.production.yml</InlineCode> for a hardened production deployment.
-              See <a href="/self-host" style={{ color: 'var(--accent)', textDecoration: 'none' }}>the full self-hosting guide</a> for all options.
-            </p>
+# Fill in your bot token, client ID, and DB credentials
+docker compose -f docker-compose.laptop.yml up -d
+npm run deploy    # register slash commands with Discord`}</CodeBlock>
+            <p style={P}>For production use, see <Ic>docker-compose.production.yml</Ic> which includes Caddy reverse proxy and hardened settings.</p>
+            <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '1rem', background: 'var(--surface-raised)', borderRadius: 'var(--radius)', overflow: 'hidden', border: '1px solid var(--border)', fontSize: '0.83rem' }}>
+              <thead><TableRow cells={['Variable', 'Required', 'Description']} head /></thead>
+              <tbody>
+                {[
+                  ['DISCORD_TOKEN', 'Yes', 'Bot token from Discord Developer Portal'],
+                  ['CLIENT_ID', 'Yes', 'Application client ID'],
+                  ['DATABASE_URL', 'Yes', 'PostgreSQL connection string'],
+                  ['REDIS_URL', 'Yes', 'Redis connection string (default: redis://localhost:6379)'],
+                  ['LAVALINK_HOST', 'Yes', 'Lavalink server host'],
+                  ['OPENAI_API_KEY', 'No', 'OpenAI key for AI features (users can BYOK)'],
+                ].map(r => <TableRow key={r[0]} cells={r} />)}
+              </tbody>
+            </table>
           </section>
 
-          {/* Reskinning */}
-          <section id="reskin" style={SECTION_STYLE}>
-            <h2 style={H2_STYLE}>Reskinning (fork &amp; rebrand)</h2>
-            <p style={P_STYLE}>
-              All brand text, colors, and feature flags are controlled by <InlineCode>src/config/branding.js</InlineCode>.
-              Fork the repo, edit that file, and you have a fully rebranded bot.
-            </p>
-            <div style={CODE_BLOCK_STYLE}>{`// src/config/branding.js
-export const Branding = {
-  name:          "MyBot",
-  tagline:       "My custom Discord bot",
-  supportServer: "https://discord.gg/myserver",
-  website:       "https://mybot.example.com",
-  github:        "https://github.com/yourname/mybot",
-  footerText:    "{botname} • mybot.example.com",
-
-  colors: {
-    primary: 0xFF5733,   // your brand color
-    success: 0x57F287,
-    error:   0xED4245,
-    music:   0x1DB954,
-  },
-};`}</div>
-            <p style={P_STYLE}>
-              Every field also has an environment variable equivalent — so you can rebrand via <InlineCode>.env</InlineCode> with no code edits at all:
-            </p>
-            <div style={CODE_BLOCK_STYLE}>{`BOT_NAME=MyBot
-BOT_TAGLINE=My custom Discord bot
-COLOR_PRIMARY=16734003
-FEATURE_ECONOMY=false`}</div>
+          <section id="reskin" style={SECTION}>
+            <h2 style={H2}>Reskinning</h2>
+            <p style={P}>Fork the repo, update the constants in <Ic>src/config/branding.ts</Ic>, and rebuild. You can change the bot name, avatar URL, embed color, footer text, and error message copy.</p>
+            <CodeBlock>{`// src/config/branding.ts
+export const BRANDING = {
+  name:        'Your Bot Name',
+  avatarUrl:   'https://cdn.yoursite.com/avatar.png',
+  color:       0x38BDF8,          // hex as integer
+  footer:      'Powered by YourBot',
+  errorPrefix: '❌',
+};`}</CodeBlock>
+            <p style={P}>After updating branding, run <Ic>docker compose up --build -d</Ic> to apply changes.</p>
           </section>
 
-          {/* Per-server themes */}
-          <section id="per-server" style={SECTION_STYLE}>
-            <h2 style={H2_STYLE}>Per-server customization</h2>
-            <p style={{ ...P_STYLE }}>
-              No fork needed. Server admins can customize how Chopsticks looks and behaves in their own server using the <InlineCode>/theme</InlineCode> command:
-            </p>
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid var(--border)', borderRadius: '0.5rem', overflow: 'hidden' }}>
-                <thead style={{ background: 'var(--surface)' }}>
-                  <TableRow cells={['Command', 'Effect']} head />
-                </thead>
-                <tbody>
-                  {[
-                    ['/theme color primary #FF5733', 'Change the primary embed color'],
-                    ['/theme name MyBot', 'Rename the bot persona for this server'],
-                    ['/theme footer "Powered by MyBot"', 'Set a custom embed footer'],
-                    ['/theme feature economy disable', 'Disable the economy module in this server'],
-                    ['/theme preview', 'Show current server theme'],
-                    ['/theme reset', 'Reset all customizations to defaults'],
-                  ].map(row => <TableRow key={row[0]} cells={row} />)}
-                </tbody>
-              </table>
-            </div>
+          <section id="per-server" style={SECTION}>
+            <h2 style={H2}>Per-server themes</h2>
+            <p style={P}>Servers can customise the bot's appearance without forking, using the <Ic>/theme</Ic> command family:</p>
+            <table style={{ width: '100%', borderCollapse: 'collapse', background: 'var(--surface-raised)', borderRadius: 'var(--radius)', overflow: 'hidden', border: '1px solid var(--border)', fontSize: '0.83rem' }}>
+              <thead><TableRow cells={['Command', 'Effect']} head /></thead>
+              <tbody>
+                {[
+                  ['/theme color #hex',    'Sets the embed accent color for this server'],
+                  ['/theme name <name>',   "Renames the bot's persona in all embeds"],
+                  ['/theme feature <mod>:off', 'Disables a module (music, economy, games, ai)'],
+                  ['/theme view',          'Displays current theme settings'],
+                ].map(r => <TableRow key={r[0]} cells={r} />)}
+              </tbody>
+            </table>
           </section>
 
-          {/* Feature flags */}
-          <section id="feature-flags" style={SECTION_STYLE}>
-            <h2 style={H2_STYLE}>Feature flags</h2>
-            <p style={P_STYLE}>
-              Toggle entire modules on or off globally (via <InlineCode>branding.js</InlineCode> or <InlineCode>.env</InlineCode>) or per-server (via <InlineCode>/theme feature</InlineCode>):
-            </p>
-            <div style={CODE_BLOCK_STYLE}>{`// branding.js features block
-features: {
-  economy:       true,
-  music:         true,
-  ai:            true,
-  leveling:      true,
-  voicemaster:   true,
-  tickets:       true,
-  moderation:    true,
-  fun:           true,
-  social:        true,
-  notifications: true,
-}`}</div>
-            <p style={{ ...P_STYLE, marginTop: '0.75rem' }}>
-              Or via env vars: <InlineCode>FEATURE_ECONOMY=false</InlineCode>, <InlineCode>FEATURE_MUSIC=false</InlineCode>, etc.
-            </p>
+          <section id="feature-flags" style={SECTION}>
+            <h2 style={H2}>Feature flags</h2>
+            <p style={P}>Module-level feature flags can be toggled per-server with <Ic>/theme feature</Ic> or globally in <Ic>.env</Ic> for self-hosters:</p>
+            <CodeBlock>{`FEATURE_MUSIC=true
+FEATURE_ECONOMY=true
+FEATURE_GAMES=true
+FEATURE_AI=true
+FEATURE_AUTOMATION=true
+FEATURE_AGENT_POOL=true`}</CodeBlock>
+            <p style={P}>Setting any flag to <Ic>false</Ic> disables all commands in that module across the entire instance. Per-server flags override the global defaults.</p>
           </section>
 
-          {/* Agent Pool */}
-          <section id="agent-pool" style={SECTION_STYLE}>
-            <h2 style={H2_STYLE}>Agent Pool system</h2>
-            <p style={P_STYLE}>
-              The Agent Pool is Chopsticks&apos; flagship feature. Multiple bot tokens are pooled, encrypted, and dispatched to voice channels on demand.
-              Servers never manage tokens — they spend server credits to request an agent.
-            </p>
-            <p style={P_STYLE}>
-              Server admins configure available agent actions and their credit costs via <InlineCode>/setup agent-pool</InlineCode>.
-              Available actions include: joining a voice channel, playing audio, running trivia, sending a message, or running an AI assistant.
-            </p>
-            <p style={{ ...P_STYLE, marginBottom: 0 }}>
-              Agents are contributed by the community — anyone can add a token to the pool via the dashboard.
-              The pool dispatcher handles load balancing and ensures no single agent is overloaded.
-            </p>
+          <section id="agent-pool" style={SECTION}>
+            <h2 style={H2}>Agent Pool</h2>
+            <p style={P}>The Agent Pool lets community members contribute bot tokens which are pooled and dispatched to voice channels on demand. Servers consume pool capacity via credits — they never manage tokens directly.</p>
+            <p style={P}><strong style={{ color: 'var(--text)' }}>Architecture:</strong> tokens are encrypted at rest, assigned to pools by owners, and dispatched to server sessions. The dispatching logic ensures fair distribution and respects per-pool rate limits.</p>
+            <CodeBlock>{`# Contributing a token to a pool
+1. Create a Discord bot at discord.com/developers
+2. Run /agents add_token in any server with Chopsticks
+3. Your token is encrypted and added to a pool of your choice
+4. Servers can now request your agent via /agent join`}</CodeBlock>
+            <p style={P}>See the full <a href={GITHUB + '/blob/main/docs/AGENT_POOL.md'} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)', textDecoration: 'underline', textUnderlineOffset: 3 }}>Agent Pool guide</a> on GitHub for advanced configuration.</p>
           </section>
 
-          {/* Contributing */}
-          <section id="contributing" style={{ ...SECTION_STYLE, borderBottom: 'none', marginBottom: 0 }}>
-            <h2 style={H2_STYLE}>Contributing</h2>
-            <p style={P_STYLE}>
-              Chopsticks is open source under a modified MIT license. Bug reports, feature requests, and pull requests are all welcome.
-            </p>
-            <p style={P_STYLE}>
-              See <InlineCode>CONTRIBUTING.md</InlineCode> in the repository for the contribution guide, code standards, and how to submit a PR.
-            </p>
-            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginTop: '1.25rem' }}>
-              <a href="https://github.com/WokSpec/Chopsticks" target="_blank" rel="noopener noreferrer" className="btn btn-ghost" style={{ fontSize: '0.85rem', padding: '0.6rem 1.25rem' }}>
-                View on GitHub →
-              </a>
-              <a href="https://github.com/WokSpec/Chopsticks/issues" target="_blank" rel="noopener noreferrer" className="btn btn-ghost" style={{ fontSize: '0.85rem', padding: '0.6rem 1.25rem' }}>
-                Open an issue →
-              </a>
-            </div>
+          <section id="contributing" style={{ scrollMarginTop: '5rem', paddingBottom: '1rem' }}>
+            <h2 style={H2}>Contributing</h2>
+            <p style={P}>Pull requests are welcome. For major changes, open an issue first to discuss the approach.</p>
+            <CodeBlock>{`# Development setup
+git clone https://github.com/WokSpec/Chopsticks
+cd Chopsticks
+npm install
+cp .env.example .env
+npm run dev`}</CodeBlock>
+            <p style={P}>See <a href={GITHUB + '/blob/main/CONTRIBUTING.md'} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)', textDecoration: 'underline', textUnderlineOffset: 3 }}>CONTRIBUTING.md</a> for code style, commit conventions, and the PR checklist.</p>
           </section>
 
         </div>
