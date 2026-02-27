@@ -401,14 +401,31 @@ Chopsticks/
 
 ## Website
 
-The [`web/`](web/) directory contains the [Next.js](https://nextjs.org) site deployed at **[chopsticks.wokspec.org](https://chopsticks.wokspec.org)** via Cloudflare Pages.
+The [`web/`](web/) directory contains the [Next.js](https://nextjs.org) site deployed at **[chopsticks.wokspec.org](https://chopsticks.wokspec.org)** via Cloudflare Pages — developed by [WokSpec](https://wokspec.org).
+
+### Pages
+
+| Route | Description |
+|-------|-------------|
+| `/` | Landing page — features overview, live stats, interactive cursor |
+| `/features` | Full feature breakdown with interactive panels |
+| `/tutorials` | Step-by-step guides with Discord UI previews |
+| `/commands` | Searchable, filterable command reference |
+| `/self-host` | Complete self-hosting walkthrough |
+| `/changelog` | Release history |
+| `/terms` | Terms of service |
+| `/privacy` | Privacy policy |
+
+### Local development
 
 ```bash
 cd web
 npm install
-npm run dev       # local dev server
-npm run deploy    # build + deploy to Cloudflare Pages
+npm run dev       # local dev server at http://localhost:3000
+npm run build     # static export to web/out/
 ```
+
+Deploy to Cloudflare Pages via the `wrangler` CLI — see [`SELF_HOSTING.md`](SELF_HOSTING.md) for full deploy instructions.
 
 ---
 

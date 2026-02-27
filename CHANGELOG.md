@@ -4,7 +4,7 @@ All notable changes to Chopsticks will be documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.1.0] — 2026-02-24
+## [2.1.0] — 2026-02-27
 
 ### Added
 - Phase I: Agent pool hardening — `/api/agents/diagnose` endpoint surfaces offline root cause per agent
@@ -14,6 +14,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 - Phase I: Per-user contribution limits (`max_contributions_per_user`) on pools
 - Phase I: Pool audit log route (`GET /api/pools/:id/audit`)
 - Phase I: Fix-pending admin endpoint for promoting agents to active
+- Website: Full public-ready site at [chopsticks.wokspec.org](https://chopsticks.wokspec.org) — rebuilt from scratch, developed by [WokSpec](https://wokspec.org)
+- Website: Interactive tutorials page with Discord UI preview panels, step-by-step accordion guides, and sidebar navigation
+- Website: Dedicated self-hosting page (`/self-host`) with complete Docker walkthrough
+- Website: Searchable, filterable command reference page
+- Website: Interactive features page — all panels navigable without a dropdown redirect
 
 ### Changed
 - H2: All prefix command external API calls now route through circuit-breaker (`httpFetch`)
