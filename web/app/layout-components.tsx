@@ -9,8 +9,8 @@ const GITHUB = 'https://github.com/WokSpec/Chopsticks';
 type DropItem = { label: string; href: string; Icon: React.FC<{size?:number}>; desc: string; external?: boolean };
 
 const FEATURES_DROP: DropItem[] = [
-  { label: 'Voice & Music',  href: '/features#music',      Icon: MusicIcon,    desc: '49 concurrent sessions' },
-  { label: 'Agent Pool',     href: '/features#agents',     Icon: RadioIcon,    desc: 'Near-human actors' },
+  { label: 'Voice & Music',  href: '/features#music',      Icon: MusicIcon,    desc: 'Playlists, audiobooks, VC' },
+  { label: 'Agents',         href: '/features#agents',     Icon: RadioIcon,    desc: 'Configurable actors' },
   { label: 'Economy',        href: '/features#economy',    Icon: CoinIcon,     desc: 'Credits, shop, quests' },
   { label: 'Moderation',     href: '/features#moderation', Icon: ShieldIcon,   desc: 'Raid, ban, antinuke' },
   { label: 'AI',             href: '/features#ai',         Icon: SparkleIcon,  desc: 'Chat, image, voice' },
@@ -21,7 +21,7 @@ const FEATURES_DROP: DropItem[] = [
 const DOCS_DROP: DropItem[] = [
   { label: 'Quickstart',     href: '/docs#hosted',         Icon: BookOpenIcon, desc: 'Add & configure in 5 min' },
   { label: 'Self-hosting',   href: '/self-host',           Icon: ServerIcon,   desc: 'Docker stack guide' },
-  { label: 'Agent Pool',     href: '/docs#agent-pool',     Icon: RadioIcon,    desc: 'Pool system explained' },
+  { label: 'Agents',         href: '/docs#agent-pool',     Icon: RadioIcon,    desc: 'Agent system explained' },
   { label: 'Contributing',   href: '/docs#contributing',   Icon: GitHubIcon,   desc: 'How to submit PRs' },
 ];
 

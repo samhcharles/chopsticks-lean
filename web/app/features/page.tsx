@@ -26,7 +26,7 @@ const AGENT_ROLES: { role: string; cat: RoleCategory; desc: string }[] = [
   { role: 'Soundboard',         cat: 'Voice',       desc: 'Triggered by credits or commands to play sounds in VC: airhorns, crowd effects, custom clips.' },
   { role: 'Event Announcer',    cat: 'Voice',       desc: 'Counts down to events, announces match starts, hypes moments in real time.' },
   { role: 'Game Master',        cat: 'Voice',       desc: 'Narrates RPG encounters, runs combat, riddles, and escape room sessions through voice.' },
-  { role: 'Support Agent',      cat: 'Text',        desc: 'Bound to #support — handles tier-1 questions with a configured knowledge base, 24/7.' },
+  { role: 'Support Agent',      cat: 'Text',        desc: 'Bound to #support — handles tier-1 questions with a configured knowledge base. In development.' },
   { role: 'Conversation Actor', cat: 'Text',        desc: 'Joins channels with a persona and butts into conversations contextually. Members may forget it\'s a bot.' },
   { role: 'Onboarding Guide',   cat: 'Text',        desc: 'Assigned to #welcome — walks new members through the server, answers FAQs, points to channels.' },
   { role: 'Hype Agent',         cat: 'Text',        desc: 'Deployed during gaming sessions to commentate wins/losses, celebrate streaks, and keep energy up.' },
@@ -69,7 +69,7 @@ const PILLARS = [
     label: 'The Agent System',
     headline: 'Not a feature. A workforce.',
     bullets: [
-      'Deploy near-human actors from the community pool — configurable persona, tone, and behavior',
+      'Deploy configurable agent actors — give each one a persona, a job, and a home channel. Actively in development; we&apos;d love contributors to help push this further',
       'Agents can be permanent (bound to a channel) or session-based (deployed on demand)',
       'Roles available: DJ, Narrator, Support Bot, Conversation Actor, Trivia Opponent, Raid Responder, and more',
       'Cross-server pool competitions — register your agents to compete in trivia arenas and leaderboards against other servers',
@@ -248,7 +248,7 @@ export default function FeaturesPage() {
               Not bots. Workers.
             </h2>
             <p style={{ fontSize: '0.95rem', color: 'var(--text-muted)', lineHeight: 1.75 }}>
-              An agent is a configurable actor deployed from the community pool. Give it a name, a persona, and a job. Bind it to a channel permanently or deploy it session-by-session. Funded by server credits — the more your members participate, the more agents you can run.
+              An agent is a configurable actor you can deploy inside your server. Give it a name, a persona, and a job. Bind it to a channel permanently or deploy it session-by-session. The agent system is actively in development — this is exactly the kind of feature we&apos;re building together with the community.
             </p>
           </div>
 
@@ -272,10 +272,10 @@ export default function FeaturesPage() {
           ))}
 
           <div style={{ background: 'rgba(167,139,250,0.05)', border: '1px solid rgba(167,139,250,0.15)', borderRadius: '0.875rem', padding: '1.5rem', maxWidth: 620, marginTop: '1rem' }}>
-            <p style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text)', fontFamily: 'var(--font-heading)', marginBottom: '0.4rem' }}>Think of it as serverless functions for Discord.</p>
-            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.7 }}>You don't manage infrastructure. You hire from the pool, fund with credits, and configure behavior. The community pool scales capacity. Your server scales activity.</p>
-            <a href="/docs#agent-pool" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', color: '#a78bfa', marginTop: '0.75rem' }}>
-              How the pool works <ArrowRightIcon size={12} />
+            <p style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text)', fontFamily: 'var(--font-heading)', marginBottom: '0.4rem' }}>This is where you come in.</p>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.7 }}>The agent system is one of the most exciting parts of Chopsticks — and one of the most unfinished. You can self-host your own instance or fork the code and experiment. But we&apos;d love for you to build with us. PRs are welcome, ideas are welcome, and the Discord is always open.</p>
+            <a href="https://github.com/WokSpec/Chopsticks/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', color: '#a78bfa', marginTop: '0.75rem' }}>
+              How to contribute <ArrowRightIcon size={12} />
             </a>
           </div>
         </div>

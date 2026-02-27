@@ -205,7 +205,7 @@ export default function HomePage() {
               <span className="gradient-text">Infinite possibilities.</span>
             </h1>
             <p style={{ fontSize: '1.05rem', color: 'var(--text-muted)', lineHeight: 1.8, maxWidth: 480, marginBottom: '2rem' }}>
-              Chopsticks is a fully-loaded Discord bot with 162 prefix commands across 17 categories — music, moderation, economy, AI, leveling, and automation — all backed by a self-healing Agent Pool that keeps your server running 24/7.
+              Chopsticks is a fully-loaded Discord bot with 162 prefix commands across 17 categories — music, moderation, economy, AI, leveling, and automation. It's open source, actively developed, and we'd love your help making it something special.
             </p>
             <div style={{ display: 'flex', gap: '0.875rem', flexWrap: 'wrap', marginBottom: '2.5rem' }}>
               <a href={BOT_INVITE} target="_blank" rel="noopener noreferrer" className="btn btn-primary" style={{ padding: '0.8rem 2rem', fontSize: '0.9rem' }}>
@@ -271,49 +271,55 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ── Agent Pool Spotlight ──────────────────────── */}
+      {/* ── Open Source / Contribute spotlight ──────────── */}
       <section style={{ padding: '5rem 0', borderBottom: '1px solid var(--border)', position: 'relative', overflow: 'hidden' }}>
-        <div className="orb orb-blue" style={{ width: 600, height: 600, top: '50%', right: -200, transform: 'translateY(-50%)', opacity: 0.2, pointerEvents: 'none' }} />
+        <div className="orb orb-violet" style={{ width: 600, height: 600, top: '50%', right: -200, transform: 'translateY(-50%)', opacity: 0.18, pointerEvents: 'none' }} />
         <div className="container" style={{ position: 'relative', zIndex: 1 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4rem', alignItems: 'start' }}>
             <div>
-              <div className="badge" style={{ marginBottom: '1.25rem' }}>Agent Pool</div>
+              <div className="badge" style={{ marginBottom: '1.25rem' }}>Open Source</div>
               <h2 style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 'clamp(1.75rem, 4vw, 2.5rem)', color: 'var(--text)', letterSpacing: '-0.04em', lineHeight: 1.1, marginBottom: '1.25rem' }}>
-                Specialised agents.<br/>
-                <span className="gradient-text">Always online.</span>
+                Built in the open.<br/>
+                <span className="gradient-text">Grown by the community.</span>
               </h2>
               <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', lineHeight: 1.8, marginBottom: '1.5rem' }}>
-                Chopsticks runs six dedicated agent processes — each responsible for a domain. If one crashes, the Overseer restarts it in under two seconds. Your music never stops. Your bans always land.
+                Chopsticks is a passion project — open source and actively developed. You can fork it, self-host your own instance, or grab the code and explore. But what we&apos;d really love is for you to <strong style={{ color: 'var(--text)' }}>build with us</strong>. There&apos;s plenty of uncharted territory and we want to make this something genuinely fun and community-driven.
               </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
-                {[
-                  ['Self-healing', 'Agents restart automatically on failure, no human needed.'],
-                  ['Zero-downtime deploys', 'Rolling restarts mean updates never interrupt your playlist or audiobook session.'],
-                  ['Per-guild isolation', 'Each guild state is scoped — one server\'s meltdown can\'t affect yours.'],
-                ].map(([t, d]) => (
-                  <div key={t} style={{ display: 'flex', gap: '0.625rem', alignItems: 'flex-start' }}>
-                    <span style={{ color: 'var(--success)', flexShrink: 0, marginTop: '0.1rem', fontSize: '1.1rem' }}>✓</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {([
+                  ['🍴', 'Fork &amp; self-host', 'Clone the repo, spin up your own instance with Docker. Full stack in under 15 minutes.'],
+                  ['🐛', 'Find &amp; fix bugs', 'Browse open issues on GitHub. No contribution is too small — docs, tests, fixes all count.'],
+                  ['✨', 'Ship new features', 'Got an idea? We actively review PRs. Agents, economy, games — there&apos;s always room to add something cool.'],
+                  ['💬', 'Join the Discord', 'Hang out, share ideas, coordinate with other contributors, and see features being built in real time.'],
+                ] as [string,string,string][]).map(([icon, title, desc]) => (
+                  <div key={title} style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
+                    <span style={{ fontSize: '1.1rem', flexShrink: 0, marginTop: '0.05rem' }}>{icon}</span>
                     <div>
-                      <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text)', fontFamily: 'var(--font-heading)' }}>{t}</span>
-                      <span style={{ fontSize: '0.83rem', color: 'var(--text-muted)', marginLeft: '0.375rem' }}>{d}</span>
+                      <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text)', fontFamily: 'var(--font-heading)' }} dangerouslySetInnerHTML={{ __html: title }} />
+                      <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginLeft: '0.375rem' }} dangerouslySetInnerHTML={{ __html: desc }} />
                     </div>
                   </div>
                 ))}
               </div>
-              <div style={{ marginTop: '2rem' }}>
-                <a href="/features" className="btn btn-secondary" style={{ padding: '0.7rem 1.75rem' }}>Learn about Agent Pool</a>
+              <div style={{ display: 'flex', gap: '0.75rem', marginTop: '2rem', flexWrap: 'wrap' }}>
+                <a href={GITHUB_REPO} target="_blank" rel="noopener noreferrer" className="btn btn-primary" style={{ padding: '0.7rem 1.75rem' }}>Contribute on GitHub</a>
+                <a href={DISCORD_SERVER} target="_blank" rel="noopener noreferrer" className="btn btn-secondary" style={{ padding: '0.7rem 1.75rem' }}>Join Discord</a>
               </div>
             </div>
-            {/* Agent role card grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-              {AGENT_ROLES.map(a => (
-                <div key={a.id} className="glass-card" style={{ padding: '1.25rem', transition: 'transform 0.2s, box-shadow 0.2s', cursor: 'default' }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-3px)'; (e.currentTarget as HTMLDivElement).style.boxShadow = `0 12px 32px rgba(${hexToRgb(a.color)},0.12)`; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)'; (e.currentTarget as HTMLDivElement).style.boxShadow = ''; }}
-                >
-                  <div style={{ fontSize: '1.5rem', marginBottom: '0.625rem' }}>{a.icon}</div>
-                  <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: '0.875rem', color: a.color, marginBottom: '0.25rem' }}>{a.label}</div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-faint)', lineHeight: 1.6 }}>{a.desc}</div>
+            {/* Contribution cards */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
+              {([
+                { label: 'Agent System', color: '#a78bfa', icon: '🤖', blurb: 'The agent dispatch and pool system is constantly evolving. Help shape how agents are assigned, configured, and extended.' },
+                { label: 'Playlist & Audiobook', color: '#f472b6', icon: '🎵', blurb: 'Drag-and-drop thread playlists and human-like audiobook narration. Feature in active development — contributors welcome.' },
+                { label: 'Economy & Games', color: '#faa61a', icon: '🪙', blurb: 'Crafting, quests, cross-server leaderboards. There are a dozen half-built ideas waiting for the right person to pick them up.' },
+                { label: 'Docs & Tutorials', color: '#38bdf8', icon: '📖', blurb: 'Good documentation is a superpower. Help us write guides, examples, and self-hosting walkthroughs.' },
+              ] as {label:string;color:string;icon:string;blurb:string}[]).map(c => (
+                <div key={c.label} className="glass-card" style={{ padding: '1.1rem 1.25rem', display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
+                  <div style={{ width: 36, height: 36, borderRadius: '0.5rem', background: `rgba(${hexToRgb(c.color)},0.12)`, border: `1px solid rgba(${hexToRgb(c.color)},0.2)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.1rem', flexShrink: 0 }}>{c.icon}</div>
+                  <div>
+                    <p style={{ fontSize: '0.88rem', fontWeight: 700, color: c.color, fontFamily: 'var(--font-heading)', marginBottom: '0.25rem' }}>{c.label}</p>
+                    <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: 1.65 }}>{c.blurb}</p>
+                  </div>
                 </div>
               ))}
             </div>

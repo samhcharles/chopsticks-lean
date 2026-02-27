@@ -38,7 +38,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'reskin',        label: 'Reskinning' },
   { id: 'per-server',    label: 'Per-server themes' },
   { id: 'feature-flags', label: 'Feature flags' },
-  { id: 'agent-pool',    label: 'Agent Pool' },
+  { id: 'agent-pool',    label: 'Agents' },
   { id: 'contributing',  label: 'Contributing' },
 ];
 
@@ -116,10 +116,10 @@ export default function DocsPage() {
 
           <section id="overview" style={SECTION}>
             <h2 style={H2}>Overview</h2>
-            <p style={P}>Chopsticks is a full-featured Discord bot built on discord.js v14 with PostgreSQL persistence, Redis caching, and a Lavalink audio backend. It ships 101 slash commands across music, moderation, economy, games, AI, and social features.</p>
-            <p style={P}>The flagship feature is the <strong style={{ color: 'var(--text)' }}>Agent Pool System</strong>: multiple Discord bot tokens are pooled, encrypted, and dispatched to voice channels on demand. Servers consume capacity without managing tokens.</p>
+            <p style={P}>Chopsticks is a full-featured Discord bot built on discord.js v14 with PostgreSQL persistence, Redis caching, and a Lavalink audio backend. It ships 162 prefix commands and 20 core slash commands across music, moderation, economy, games, AI, and social features.</p>
+            <p style={P}>It&apos;s open source and actively developed — you can self-host your own instance, fork the code, or <strong style={{ color: 'var(--text)' }}>contribute directly</strong> and help build something genuinely great.</p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.625rem', marginTop: '1.25rem' }}>
-              {[['101', 'Commands'], ['49', 'Voice sessions'], ['MIT', 'License']].map(([v, l]) => (
+              {[['162', 'Prefix commands'], ['20', 'Slash commands'], ['MIT', 'License']].map(([v, l]) => (
                 <div key={l} style={{ background: 'var(--surface-raised)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1rem', textAlign: 'center' }}>
                   <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: '1.25rem', color: 'var(--accent)', letterSpacing: '-0.03em' }}>{v}</div>
                   <div style={{ fontSize: '0.7rem', color: 'var(--text-faint)', fontFamily: 'var(--font-heading)', textTransform: 'uppercase', letterSpacing: '0.07em', marginTop: '0.2rem' }}>{l}</div>
@@ -217,15 +217,20 @@ FEATURE_AGENT_POOL=true`}</CodeBlock>
           </section>
 
           <section id="agent-pool" style={SECTION}>
-            <h2 style={H2}>Agent Pool</h2>
-            <p style={P}>The Agent Pool lets community members contribute bot tokens which are pooled and dispatched to voice channels on demand. Servers consume pool capacity via credits — they never manage tokens directly.</p>
-            <p style={P}><strong style={{ color: 'var(--text)' }}>Architecture:</strong> tokens are encrypted at rest, assigned to pools by owners, and dispatched to server sessions. The dispatching logic ensures fair distribution and respects per-pool rate limits.</p>
-            <CodeBlock>{`# Contributing a token to a pool
-1. Create a Discord bot at discord.com/developers
-2. Run /agents add_token in any server with Chopsticks
-3. Your token is encrypted and added to a pool of your choice
-4. Servers can now request your agent via /agent join`}</CodeBlock>
-            <p style={P}>See the full <a href={GITHUB + '/blob/main/docs/AGENT_POOL.md'} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)', textDecoration: 'underline', textUnderlineOffset: 3 }}>Agent Pool guide</a> on GitHub for advanced configuration.</p>
+            <h2 style={H2}>Agent System</h2>
+            <p style={P}>The Agent System lets you deploy configurable bot actors inside your server — each with a name, persona, and assigned role. Agents can narrate audiobooks in voice channels, host support threads, run trivia, commentate gaming sessions, and more.</p>
+            <p style={P}>This feature is <strong style={{ color: 'var(--text)' }}>actively in development</strong>. You can experiment with it today, but it&apos;s an area where community contributions are especially welcome. If you want to help shape how agents work, the GitHub repo is the place to start.</p>
+            <CodeBlock>{`# Getting started with agents
+1. Invite Chopsticks to your server
+2. Run /agent setup to configure your first agent
+3. Assign it a channel and a persona
+4. Use /agent deploy to activate it in a voice or text channel
+
+# Want to contribute?
+- Browse open issues: github.com/WokSpec/Chopsticks/issues
+- Read CONTRIBUTING.md before opening a PR
+- Join the Discord to discuss ideas with the team`}</CodeBlock>
+            <p style={P}>See the <a href={GITHUB + '/blob/main/CONTRIBUTING.md'} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)', textDecoration: 'underline', textUnderlineOffset: 3 }}>Contributing guide</a> on GitHub to get involved.</p>
           </section>
 
           <section id="contributing" style={{ scrollMarginTop: '5rem', paddingBottom: '1rem' }}>
