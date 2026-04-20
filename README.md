@@ -200,7 +200,7 @@ For process management, use `pm2` or a `systemd` unit. The bot is a single proce
 
 ## Origin
 
-Chopsticks Lean is derived from [Chopsticks](https://github.com/samhcharles/chopsticks), the full-featured open-source Discord bot built by Mad House. The lean build exists because the Mad House server doesn't need every feature from the full stack — and running lean means fewer things to maintain, fewer things to break, and lower VPS cost.
+Chopsticks Lean is derived from [Chopsticks](https://github.com/samhcharles/chopsticks), the full-featured open-source self-hostable Discord bot built by Mad House. The lean build exists because the Mad House server doesn't need every feature from the full stack — and running lean means fewer things to maintain, fewer things to break, and lower VPS cost.
 
 If you want every feature including music, AI agents, and a web dashboard, start from the full Chopsticks repo instead.
 

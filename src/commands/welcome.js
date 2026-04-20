@@ -7,7 +7,7 @@ import { svgToPngBuffer } from "../game/render/imCards.js";
 
 const MH_PRIMARY = 0xCC3300;
 const MH_NEUTRAL = 0x1A1A1A;
-const BANNER_URL = process.env.MADHOUSE_BANNER_URL ?? null;
+const BANNER_URL = process.env.BANNER_URL ?? null;
 
 const SKIP_PREFIXES = ["ticket-", "closed-"];
 
