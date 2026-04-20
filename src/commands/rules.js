@@ -26,7 +26,7 @@ export const data = new SlashCommandBuilder()
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild);
 
 const MH = { primary: 0xCC3300, secondary: 0xFF5500, neutral: 0x1A1A1A, warning: 0xF39C12, error: 0xE74C3C };
-const BANNER_URL = process.env.MADHOUSE_BANNER_URL ?? null;
+const BANNER_URL = process.env.BANNER_URL ?? null;
 const FOOTER = `Mad House  —  ${new Date().getFullYear()}`;
 const f = () => ({ text: FOOTER });
 

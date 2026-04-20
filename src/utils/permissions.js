@@ -9,8 +9,8 @@ const CATEGORY_MAP = {
   voice: new Set(["audiobook","voice"]),
   safety: new Set(["antinuke","antispam","automod","verify","lockdown"]),
   social: new Set(["xp","levels","leaderboard","rank","card","profile","profilecard","social","marry","birthday","reputation","streak","highlight","colorrole","boosterperks"]),
-  tools: new Set(["poll","giveaway","remind","starboard","tickets","embed","tag","suggest","pin","threads","autoresponder","customcmd","emojitools","roles","auction"]),
-  economy: new Set(["bank","pay","shop","use","craft","gather","trade","vault","casino","heist","collection","quest","quests","pet"]),
+  tools: new Set(["poll","giveaway","remind","starboard","tickets","embed","tag","suggest","pin","threads","autoresponder","customcmd","emojitools","roles"]),
+  economy: new Set(["bank","pay","shop","use","craft","gather","trade","vault","heist","quest","quests"]),
   ai: new Set(["ai","imagine","imageinfo","weather"]),
   games: new Set(["game","fight","battle","heist","trivia","riddle","wouldyourather","truthordare"])
 };

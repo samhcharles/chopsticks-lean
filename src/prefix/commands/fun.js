@@ -406,34 +406,4 @@ export default [
       await message.reply({ embeds: [embed] });
     }
   },
-
-  {
-    name: "trivia",
-    aliases: ["quiz", "q?"],
-    description: "Quick trivia question — !trivia [easy|normal|hard]",
-    rateLimit: 5000,
-    async execute(message, args) {
-      const { pickTriviaQuestion } = await import("../../game/trivia/bank.js");
-      const diff = ["easy", "normal", "hard"].includes(args[0]) ? args[0] : "normal";
-      let q;
-      try { q = await pickTriviaQuestion({ difficulty: diff }); } catch { q = null; }
-      if (!q) return message.reply("❌ Couldn't load a trivia question. Try again!");
-      const choices = [q.correct_answer, ...(q.incorrect_answers || [])].sort(() => Math.random() - 0.5);
-      const letters = ["A", "B", "C", "D"];
-      const lines = choices.slice(0, 4).map((c, i) => `**${letters[i]})** ${c}`);
-      const correctLetter = letters[choices.indexOf(q.correct_answer)];
-      const embed = new EmbedBuilder()
-        .setTitle("🧠 Trivia Question")
-        .setDescription([
-          `**${q.question}**`,
-          "",
-          ...lines,
-          "",
-          `||Answer: **${correctLetter}) ${q.correct_answer}**||`,
-        ].join("\n"))
-        .setColor(COLORS.INFO)
-        .setFooter({ text: `${diff} • ${q.category || "General"} • Chopsticks !trivia` });
-      await message.reply({ embeds: [embed] });
-    }
-  },
 ];

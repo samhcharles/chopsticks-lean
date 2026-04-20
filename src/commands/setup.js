@@ -189,7 +189,7 @@ function buildComponents(userId, channelId) {
       { label: "⚡ Leveling: Relaxed Preset", value: "leveling_relaxed", description: "Slow, casual XP progression" },
       { label: "⚡ Leveling: Grind Preset", value: "leveling_grind", description: "Fast, competitive XP progression" },
       { label: "⚡ Disable Leveling", value: "leveling_off", description: "Turn off guild XP/leveling system" },
-      { label: "🎮 Enable Fun Commands", value: "fun_on", description: "Allow /social, /card, /trivia, /casino in this server" },
+      { label: "🎮 Enable Fun Commands", value: "fun_on", description: "Allow /social, /card, /fight, /gather in this server" },
     );
 
   const roleSelect = new RoleSelectMenuBuilder()
@@ -287,9 +287,9 @@ export async function execute(interaction) {
       const lvlupCh = interaction.options.getChannel("levelup_channel");
 
       const PRESETS = {
-        relaxed:  { enabled: true,  xp_per_message: 3,  xp_per_vc_minute: 1, xp_per_work: 20, xp_per_gather: 15, xp_per_fight_win: 25, xp_per_trivia_win: 30, xp_per_daily: 50, xp_multiplier: 1.0, message_xp_cooldown_s: 120 },
-        balanced: { enabled: true,  xp_per_message: 5,  xp_per_vc_minute: 2, xp_per_work: 40, xp_per_gather: 30, xp_per_fight_win: 50, xp_per_trivia_win: 60, xp_per_daily: 80, xp_multiplier: 1.0, message_xp_cooldown_s: 60 },
-        grind:    { enabled: true,  xp_per_message: 10, xp_per_vc_minute: 5, xp_per_work: 80, xp_per_gather: 60, xp_per_fight_win: 100, xp_per_trivia_win: 120, xp_per_daily: 160, xp_multiplier: 1.5, message_xp_cooldown_s: 30 },
+        relaxed:  { enabled: true,  xp_per_message: 3,  xp_per_vc_minute: 1, xp_per_work: 20, xp_per_gather: 15, xp_per_fight_win: 25, xp_per_daily: 50, xp_multiplier: 1.0, message_xp_cooldown_s: 120 },
+        balanced: { enabled: true,  xp_per_message: 5,  xp_per_vc_minute: 2, xp_per_work: 40, xp_per_gather: 30, xp_per_fight_win: 50, xp_per_daily: 80, xp_multiplier: 1.0, message_xp_cooldown_s: 60 },
+        grind:    { enabled: true,  xp_per_message: 10, xp_per_vc_minute: 5, xp_per_work: 80, xp_per_gather: 60, xp_per_fight_win: 100, xp_per_daily: 160, xp_multiplier: 1.5, message_xp_cooldown_s: 30 },
         off:      { enabled: false },
       };
 
@@ -406,9 +406,9 @@ export async function handleSelect(interaction) {
   } else if (action === "leveling_balanced" || action === "leveling_relaxed" || action === "leveling_grind") {
     const presetName = action.split("_")[1];
     const PRESETS = {
-      relaxed:  { enabled: true, xp_per_message:3, xp_per_vc_minute:1, xp_per_work:20, xp_per_gather:15, xp_per_fight_win:25, xp_per_trivia_win:30, xp_per_daily:50, xp_multiplier:1.0, message_xp_cooldown_s:120 },
-      balanced: { enabled: true, xp_per_message:5, xp_per_vc_minute:2, xp_per_work:40, xp_per_gather:30, xp_per_fight_win:50, xp_per_trivia_win:60, xp_per_daily:80, xp_multiplier:1.0, message_xp_cooldown_s:60 },
-      grind:    { enabled: true, xp_per_message:10, xp_per_vc_minute:5, xp_per_work:80, xp_per_gather:60, xp_per_fight_win:100, xp_per_trivia_win:120, xp_per_daily:160, xp_multiplier:1.5, message_xp_cooldown_s:30 },
+      relaxed:  { enabled: true, xp_per_message:3, xp_per_vc_minute:1, xp_per_work:20, xp_per_gather:15, xp_per_fight_win:25, xp_per_daily:50, xp_multiplier:1.0, message_xp_cooldown_s:120 },
+      balanced: { enabled: true, xp_per_message:5, xp_per_vc_minute:2, xp_per_work:40, xp_per_gather:30, xp_per_fight_win:50, xp_per_daily:80, xp_multiplier:1.0, message_xp_cooldown_s:60 },
+      grind:    { enabled: true, xp_per_message:10, xp_per_vc_minute:5, xp_per_work:80, xp_per_gather:60, xp_per_fight_win:100, xp_per_daily:160, xp_multiplier:1.5, message_xp_cooldown_s:30 },
     };
     try {
       const { upsertGuildXpConfig } = await import('../utils/storage.js');
@@ -424,7 +424,7 @@ export async function handleSelect(interaction) {
       note = "Leveling system disabled.";
     } catch (e) { note = `Leveling config error: ${e.message}`; }
   } else if (action === "fun_on") {
-    const funCmds = ['social', 'card', 'trivia', 'casino', 'gather', 'fight'];
+    const funCmds = ['social', 'card', 'gather', 'fight'];
     try {
       const { setCommandEnabled } = await import('../utils/permissions.js');
       for (const cmd of funCmds) await setCommandEnabled(guildId, cmd, true).catch(() => {});
